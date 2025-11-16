@@ -222,8 +222,9 @@ include __DIR__ . '/../../includes/header.php';
                     <input type="number" step="0.01" class="form-control" name="precio_compra" id="edit-precio-compra" required min="0" max="99999.99" maxlength="8">
                 </div>
                 <div class="mb-3">
-                    <label for="edit-stock" class="form-label">Stock</label>
+                    <label for="edit-stock" class="form-label">Stock <small class="text-muted" id="stock-actual-info"></small></label>
                     <input type="number" class="form-control" name="stock" id="edit-stock" required min="0" max="999">
+                    <small class="text-muted" id="stock-validation-message"></small>
                 </div>
                 <div class="mb-3">
                     <label for="edit-stock-minimo" class="form-label">Stock Mínimo</label>
@@ -261,6 +262,12 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit-precio-compra').value = producto.precio_compra;
             document.getElementById('edit-stock').value = producto.stock;
             document.getElementById('edit-stock-minimo').value = producto.stock_minimo;
+            
+            // Mostrar stock actual
+            const stockActualInfo = document.getElementById('stock-actual-info');
+            if (stockActualInfo) {
+                stockActualInfo.textContent = `(Stock actual: ${producto.stock})`;
+            }
             document.getElementById('edit-proveedor').value = producto.proveedor_id;
 
             var modal = new bootstrap.Modal(document.getElementById('modalEditarProducto'));
@@ -292,11 +299,53 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     document.getElementById('edit-stock').addEventListener('input', function(e) {
-        if (e.target.value.length > 3) {
-            e.target.value = e.target.value.slice(0, 3);
+        let value = e.target.value;
+        // Remover caracteres no numéricos excepto el signo negativo inicial
+        value = value.replace(/[^0-9-]/g, '');
+        // No permitir múltiples signos negativos
+        if (value.indexOf('-') > 0) {
+            value = value.replace(/-/g, '');
         }
-        if (parseInt(e.target.value) > 999) {
-            e.target.value = 999;
+        // Si empieza con negativo, mantenerlo pero validar
+        if (value.startsWith('-')) {
+            // No permitir valores negativos
+            value = value.replace(/-/g, '');
+        }
+        if (value.length > 3) {
+            value = value.slice(0, 3);
+        }
+        const numValue = parseInt(value) || 0;
+        if (numValue < 0) {
+            value = '0';
+        }
+        if (numValue > 999) {
+            value = '999';
+        }
+        e.target.value = value;
+        
+        // Validar stock en tiempo real
+        const validationMessage = document.getElementById('stock-validation-message');
+        const productoId = document.querySelector('input[name="id"]')?.value;
+        if (productoId && validationMessage) {
+            const tr = document.getElementById('producto-row-' + productoId);
+            if (tr) {
+                const productoData = JSON.parse(tr.getAttribute('data-producto') || '{}');
+                const stockActual = parseInt(productoData.stock) || 0;
+                const nuevoStock = parseInt(value) || 0;
+                
+                if (nuevoStock < 0) {
+                    validationMessage.textContent = 'El stock no puede ser negativo.';
+                    validationMessage.className = 'text-danger';
+                    e.target.classList.add('is-invalid');
+                } else if (nuevoStock < stockActual) {
+                    validationMessage.textContent = `Advertencia: Se está reduciendo el stock de ${stockActual} a ${nuevoStock}.`;
+                    validationMessage.className = 'text-warning';
+                    e.target.classList.remove('is-invalid');
+                } else {
+                    validationMessage.textContent = '';
+                    e.target.classList.remove('is-invalid');
+                }
+            }
         }
     });
     document.getElementById('edit-stock-minimo').addEventListener('input', function(e) {
@@ -312,6 +361,31 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         const form = e.target;
         const datos = new FormData(form);
+        
+        // Validar stock antes de enviar
+        const stockInput = document.getElementById('edit-stock');
+        const stockValue = parseInt(stockInput.value) || 0;
+        
+        if (stockValue < 0) {
+            alert('El stock no puede ser negativo. El valor mínimo permitido es 0.');
+            stockInput.focus();
+            return;
+        }
+        
+        // Obtener el stock actual del producto desde el atributo data
+        const productoId = datos.get('id');
+        const tr = document.getElementById('producto-row-' + productoId);
+        if (tr) {
+            const productoData = JSON.parse(tr.getAttribute('data-producto') || '{}');
+            const stockActual = parseInt(productoData.stock) || 0;
+            
+            // Si se está reduciendo el stock, validar que no quede negativo
+            if (stockValue < stockActual && stockValue < 0) {
+                alert(`No se puede reducir el stock. Stock actual: ${stockActual}. El stock no puede ser negativo.`);
+                stockInput.focus();
+                return;
+            }
+        }
 
         fetch('gestion_productos_ajax.php', {
             method: 'POST',

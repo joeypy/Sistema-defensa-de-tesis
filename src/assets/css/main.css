@@ -184,9 +184,9 @@ table th {
     font-weight: 600;
 }
 
-table tr:hover {
+/* Hover desactivado - table tr:hover {
     background-color: #f8f9fa;
-}
+} */
 
 /* Mensajes */
 .success {
@@ -558,8 +558,15 @@ table tr:hover {
     vertical-align: middle;
 }
 
-.table-hover tbody tr:hover {
+/* Hover desactivado - .table-hover tbody tr:hover {
     background-color: #f8fafc;
+} */
+
+/* Desactivar hover en todas las tablas (incluyendo Bootstrap) */
+table tbody tr:hover,
+.table-hover tbody tr:hover,
+.table tbody tr:hover {
+    background-color: transparent !important;
 }
 
 /* Alert styles */

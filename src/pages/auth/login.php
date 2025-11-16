@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header("Location: " . PAGES_URL . "/index.php");
                 exit();
             } else {
-                $error = "Contraseña incorrecta";
+                $error = "Credenciales incorrecta";
             }
         } else {
             $error = "Usuario no encontrado";

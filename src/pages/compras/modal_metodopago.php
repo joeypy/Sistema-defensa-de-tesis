@@ -21,13 +21,9 @@ if (!defined('BASE_URL')) {
                         <option value="Punto de Venta">Punto de Venta</option>
                     </select>
                 </div>
-                <div class="mb-3">
+                <div class="mb-3" id="numero_referencia_container" style="display: none;">
                     <label for="numero_referencia" class="form-label">Número de Referencia:</label>
-                    <input type="text" id="numero_referencia" class="form-control" pattern="[0-9]{4}" maxlength="4" placeholder="4 dígitos" required>
-                </div>
-                <div class="mb-3">
-                    <label for="monto_pago" class="form-label">Monto del Pago:</label>
-                    <input type="number" id="monto_pago" class="form-control" step="0.01" min="0" placeholder="Ingrese el monto" required>
+                    <input type="text" id="numero_referencia" class="form-control" pattern="[0-9]{4}" maxlength="4" placeholder="4 dígitos">
                 </div>
             </div>
             <div class="modal-footer">

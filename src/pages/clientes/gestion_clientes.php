@@ -41,15 +41,15 @@ include __DIR__ . '/../../includes/header.php';
                             <td><?= htmlspecialchars($cliente['nombre']) ?></td>
                             <td><?= htmlspecialchars($cliente['identificacion']) ?></td>
                             <td><?= htmlspecialchars($cliente['direccion']) ?></td>
-                            <td><?= htmlspecialchars($cliente['creado_en']) ?></td>
+                            <td><?= htmlspecigitalchars($cliente['creado_en']) ?></td>
                             <td class="text-center">
                                 <div class="btn-group acciones-btn-group" role="group">
                                     <button type="button" class="btn btn-sm btn-primary btn-editar" data-id="<?= $cliente['id'] ?>" title="Editar">
                                         <i class="bi bi-pencil-square"></i> Editar
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-danger btn-eliminar" data-id="<?= $cliente['id'] ?>" title="Eliminar">
+                                    <!-- <button type="button" class="btn btn-sm btn-danger btn-eliminar" data-id="<?= $cliente['id'] ?>" title="Eliminar">
                                         <i class="bi bi-trash"></i> Eliminar
-                                    </button>
+                                    </button> -->
                                 </div>
                             </td>
                         </tr>

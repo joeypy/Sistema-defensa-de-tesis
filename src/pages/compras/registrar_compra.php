@@ -22,24 +22,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $pdo->beginTransaction();
 
-        $cliente_id = $_POST['cliente_id'];
+        // Validar y convertir cliente_id a entero
+        // Manejar tanto valores vacíos como cadenas vacías
+        $cliente_id_raw = $_POST['cliente_id'] ?? '';
+        $cliente_id = (trim($cliente_id_raw) !== '' && is_numeric($cliente_id_raw)) ? (int)$cliente_id_raw : null;
+        
+        if (empty($cliente_id) || $cliente_id <= 0) {
+            throw new Exception("Debe seleccionar un cliente válido.");
+        }
+        
         $usuario_id = $_SESSION['usuario_id'];
-        $marcas_ids = $_POST['marca_id'];
-        $productos_ids = $_POST['producto_id'];
-        $cantidades = $_POST['cantidad'];
-        $descuentos = $_POST['descuento'];
+        if (empty($usuario_id)) {
+            throw new Exception("Error de sesión. Por favor, inicie sesión nuevamente.");
+        }
+        
+        $marcas_ids = $_POST['marca_id'] ?? [];
+        $productos_ids = $_POST['producto_id'] ?? [];
+        $cantidades = $_POST['cantidad'] ?? [];
+        $descuentos = $_POST['descuento'] ?? [];
+        
+        // Validar que haya al menos un producto
+        if (empty($productos_ids) || count($productos_ids) === 0) {
+            throw new Exception("Debe agregar al menos un producto a la compra.");
+        }
 
         $total = 0;
         $detalles = [];
 
         for ($i = 0; $i < count($productos_ids); $i++) {
-            $marca_id = $marcas_ids[$i];
-            $producto_id = $productos_ids[$i];
-            $cantidad = $cantidades[$i];
-            $descuento = $descuentos[$i];
+            // Validar y convertir IDs a enteros
+            $marca_id = !empty($marcas_ids[$i]) ? (int)$marcas_ids[$i] : null;
+            $producto_id = !empty($productos_ids[$i]) ? (int)$productos_ids[$i] : null;
+            $cantidad = !empty($cantidades[$i]) ? (int)$cantidades[$i] : 0;
+            $descuento = $descuentos[$i] ?? '0';
+            
+            // Validar que los IDs sean válidos
+            if (empty($marca_id) || $marca_id <= 0) {
+                throw new Exception("Debe seleccionar una marca válida para el producto en la fila " . ($i + 1) . ".");
+            }
+            if (empty($producto_id) || $producto_id <= 0) {
+                throw new Exception("Debe seleccionar un producto válido en la fila " . ($i + 1) . ".");
+            }
 
-            // Obtener precio del producto
-            $stmt = $pdo->prepare("SELECT precio_compra FROM productos WHERE id = ?");
+            // Validar que la cantidad sea positiva
+            if ($cantidad <= 0) {
+                throw new Exception("La cantidad debe ser mayor a 0 para el producto seleccionado.");
+            }
+
+            // Obtener precio y stock del producto
+            $stmt = $pdo->prepare("SELECT precio_compra, stock, nombre FROM productos WHERE id = ?");
             $stmt->execute([$producto_id]);
             $producto = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -48,6 +79,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $precio_unitario = $producto['precio_compra'];
+            $stock_actual = (int)$producto['stock'];
+            $nombre_producto = $producto['nombre'];
+            
+            // Validar que el stock resultante no sea negativo
+            // En compras, el stock aumenta, pero validamos que la cantidad sea válida
+            if ($cantidad < 0) {
+                throw new Exception("La cantidad no puede ser negativa para el producto: $nombre_producto");
+            }
 
             $subtotal = $precio_unitario * $cantidad;
             if ($descuento == "1") {
@@ -84,9 +123,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Insertar método de pago si se proporcionó
-        if (isset($_POST['metodo_pago']) && isset($_POST['numero_referencia']) && isset($_POST['monto_pago'])) {
-            $stmt = $pdo->prepare("INSERT INTO metodo_pago (compra_id, metodo, numero_referencia, monto) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$compra_id, $_POST['metodo_pago'], $_POST['numero_referencia'], $_POST['monto_pago']]);
+        if (isset($_POST['metodo_pago'])) {
+            $metodo = $_POST['metodo_pago'];
+            $numero_referencia = ($metodo === 'Efectivo') ? null : ($_POST['numero_referencia'] ?? null);
+            
+            // Validar que si no es Efectivo, debe tener número de referencia
+            if ($metodo !== 'Efectivo' && empty($numero_referencia)) {
+                throw new Exception("El número de referencia es obligatorio para el método de pago: $metodo");
+            }
+            
+            $stmt = $pdo->prepare("INSERT INTO metodo_pago (compra_id, metodo, numero_referencia) VALUES (?, ?, ?)");
+            $stmt->execute([$compra_id, $metodo, $numero_referencia]);
         }
 
         $pdo->commit();
@@ -607,18 +654,84 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Manejar el botón de registrar compra
     document.getElementById('btn-registrar-compra').addEventListener('click', function() {
+        // Validar que el cliente esté seleccionado antes de abrir el modal
+        const clienteSelect = document.getElementById('cliente');
+        const clienteId = clienteSelect ? clienteSelect.value : null;
+        
+        if (!clienteId || clienteId === '' || clienteId === '0') {
+            alert('Por favor seleccione un cliente antes de registrar la compra.');
+            if (clienteSelect) {
+                clienteSelect.focus();
+                // Si está usando Select2, abrir el dropdown
+                if (typeof $(clienteSelect).select2 !== 'undefined') {
+                    $(clienteSelect).select2('open');
+                }
+            }
+            return;
+        }
+        
+        // Validar que haya al menos un producto
+        const productosContainer = document.getElementById('productos-container');
+        const productosRows = productosContainer ? productosContainer.querySelectorAll('.producto-item') : [];
+        let productosValidos = 0;
+        
+        productosRows.forEach(function(row) {
+            const productoSelect = row.querySelector('.producto-select');
+            const cantidadInput = row.querySelector('.cantidad');
+            if (productoSelect && productoSelect.value && cantidadInput && parseInt(cantidadInput.value) > 0) {
+                productosValidos++;
+            }
+        });
+        
+        if (productosValidos === 0) {
+            alert('Debe agregar al menos un producto a la compra.');
+            return;
+        }
+        
         const modal = new bootstrap.Modal(document.getElementById('modalMetodoPago'));
         modal.show();
+    });
+
+    // Manejar cambio de método de pago
+    document.getElementById('metodo_pago').addEventListener('change', function() {
+        const metodo = this.value;
+        const referenciaContainer = document.getElementById('numero_referencia_container');
+        const referenciaInput = document.getElementById('numero_referencia');
+        
+        if (metodo === 'Efectivo') {
+            // Ocultar y limpiar el campo de referencia para Efectivo
+            referenciaContainer.style.display = 'none';
+            referenciaInput.value = '';
+            referenciaInput.removeAttribute('required');
+        } else {
+            // Mostrar y hacer obligatorio para otros métodos
+            referenciaContainer.style.display = 'block';
+            referenciaInput.setAttribute('required', 'required');
+        }
     });
 
     // Manejar la confirmación del pago
     document.getElementById('btn-confirmar-pago').addEventListener('click', function() {
         const metodo = document.getElementById('metodo_pago').value;
-        const referencia = document.getElementById('numero_referencia').value;
-        const monto = document.getElementById('monto_pago').value;
+        const referenciaInput = document.getElementById('numero_referencia');
+        const referencia = referenciaInput.value;
         
-        if (!metodo || !referencia || !monto) {
-            alert('Por favor complete todos los campos del método de pago.');
+        if (!metodo) {
+            alert('Por favor seleccione un método de pago.');
+            return;
+        }
+        
+        // Validar número de referencia solo si no es Efectivo
+        if (metodo !== 'Efectivo' && !referencia) {
+            alert('El número de referencia es obligatorio para ' + metodo + '.');
+            referenciaInput.focus();
+            return;
+        }
+        
+        // Validar formato del número de referencia si se proporciona
+        if (referencia && !/^\d{4}$/.test(referencia)) {
+            alert('El número de referencia debe tener exactamente 4 dígitos.');
+            referenciaInput.focus();
             return;
         }
         
@@ -630,17 +743,14 @@ document.addEventListener('DOMContentLoaded', function() {
         hiddenMetodo.value = metodo;
         form.appendChild(hiddenMetodo);
         
-        const hiddenReferencia = document.createElement('input');
-        hiddenReferencia.type = 'hidden';
-        hiddenReferencia.name = 'numero_referencia';
-        hiddenReferencia.value = referencia;
-        form.appendChild(hiddenReferencia);
-        
-        const hiddenMonto = document.createElement('input');
-        hiddenMonto.type = 'hidden';
-        hiddenMonto.name = 'monto_pago';
-        hiddenMonto.value = monto;
-        form.appendChild(hiddenMonto);
+        // Solo agregar número de referencia si no es Efectivo y tiene valor
+        if (metodo !== 'Efectivo' && referencia) {
+            const hiddenReferencia = document.createElement('input');
+            hiddenReferencia.type = 'hidden';
+            hiddenReferencia.name = 'numero_referencia';
+            hiddenReferencia.value = referencia;
+            form.appendChild(hiddenReferencia);
+        }
         
         // Cerrar modal y enviar formulario
         const modal = bootstrap.Modal.getInstance(document.getElementById('modalMetodoPago'));

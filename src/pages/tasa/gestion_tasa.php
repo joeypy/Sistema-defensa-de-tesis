@@ -28,28 +28,85 @@ $tasa_actual = $pdo->query("SELECT * FROM tasa_diaria WHERE fecha = CURDATE()")-
 // Obtener tasa del día desde la API oficial
 $tasa_api = null;
 $error_api = null;
+$sin_conexion = false;
+
 try {
     $api_url = 'https://ve.dolarapi.com/v1/dolares/oficial';
-    $context = stream_context_create([
-        'http' => [
-            'timeout' => 5,
-            'method' => 'GET',
-            'header' => 'User-Agent: Sistema-Compras/1.0'
-        ]
-    ]);
     
-    $response = @file_get_contents($api_url, false, $context);
-    if ($response !== false) {
-        $tasa_api = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $error_api = 'Error al decodificar respuesta de la API';
-            $tasa_api = null;
+    // Intentar usar cURL si está disponible (mejor detección de errores)
+    if (function_exists('curl_init')) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $api_url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Sistema-Compras/1.0');
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curl_error = curl_error($ch);
+        curl_close($ch);
+        
+        if ($response === false || !empty($curl_error)) {
+            // Error de conexión
+            $sin_conexion = true;
+            $error_api = 'Sin conexión a internet, tasa no disponible';
+        } elseif ($http_code !== 200) {
+            $error_api = 'Error al obtener tasa de la API (HTTP ' . $http_code . ')';
+        } else {
+            $tasa_api = json_decode($response, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $error_api = 'Error al decodificar respuesta de la API';
+                $tasa_api = null;
+            }
         }
     } else {
-        $error_api = 'No se pudo conectar con la API del dólar oficial';
+        // Fallback a file_get_contents
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 5,
+                'method' => 'GET',
+                'header' => 'User-Agent: Sistema-Compras/1.0'
+            ]
+        ]);
+        
+        $response = @file_get_contents($api_url, false, $context);
+        if ($response === false) {
+            // Verificar si es un error de conexión
+            $last_error = error_get_last();
+            $error_msg = $last_error['message'] ?? '';
+            if (strpos($error_msg, 'getaddrinfo') !== false || 
+                strpos($error_msg, 'Connection') !== false ||
+                strpos($error_msg, 'timed out') !== false ||
+                strpos($error_msg, 'Name or service not known') !== false ||
+                strpos($error_msg, 'Network is unreachable') !== false) {
+                $sin_conexion = true;
+                $error_api = 'Sin conexión a internet, tasa no disponible';
+            } else {
+                $error_api = 'No se pudo conectar con la API del dólar oficial';
+            }
+        } else {
+            $tasa_api = json_decode($response, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $error_api = 'Error al decodificar respuesta de la API';
+                $tasa_api = null;
+            }
+        }
     }
 } catch (Exception $e) {
-    $error_api = 'Error al obtener tasa de la API: ' . $e->getMessage();
+    // Verificar si es un error de conexión
+    $error_message = $e->getMessage();
+    if (strpos($error_message, 'getaddrinfo') !== false || 
+        strpos($error_message, 'Connection') !== false ||
+        strpos($error_message, 'timed out') !== false ||
+        strpos($error_message, 'Name or service not known') !== false ||
+        strpos($error_message, 'Network is unreachable') !== false) {
+        $sin_conexion = true;
+        $error_api = 'Sin conexión a internet, tasa no disponible';
+    } else {
+        $error_api = 'Error al obtener tasa de la API: ' . $error_message;
+    }
 }
 
 // Obtener últimas tasas
@@ -91,14 +148,22 @@ include __DIR__ . '/../../includes/header.php';
                             <label for="tasa" class="form-label">Tasa (1 USD = X VES):</label>
                             <div class="input-group">
                                 <input type="number" id="tasa" name="tasa" class="form-control" step="0.01" min="0" value="<?php echo $tasa_actual['tasa'] ?? ''; ?>" required>
-                                <?php if ($tasa_api && isset($tasa_api['promedio'])): ?>
+                                <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
                                     <button type="button" class="btn btn-outline-success" onclick="document.getElementById('tasa').value = '<?php echo $tasa_api['promedio']; ?>'; document.getElementById('descripcion').value = 'Tasa oficial del día - <?php echo date('d/m/Y'); ?>';">
+                                        <i class="bi bi-arrow-down-circle me-1"></i>Usar API
+                                    </button>
+                                <?php else: ?>
+                                    <button type="button" class="btn btn-outline-secondary" disabled title="No disponible sin conexión a internet">
                                         <i class="bi bi-arrow-down-circle me-1"></i>Usar API
                                     </button>
                                 <?php endif; ?>
                             </div>
-                            <?php if ($tasa_api && isset($tasa_api['promedio'])): ?>
+                            <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
                                 <small class="text-muted">Valor de la API: <?php echo number_format($tasa_api['promedio'], 2); ?> VES</small>
+                            <?php elseif ($sin_conexion): ?>
+                                <small class="text-danger">
+                                    <i class="bi bi-wifi-off me-1"></i>Sin conexión a internet, tasa no disponible
+                                </small>
                             <?php endif; ?>
                         </div>
                         <div class="mb-3">
@@ -124,7 +189,7 @@ include __DIR__ . '/../../includes/header.php';
                         <h6 class="text-primary mb-2">
                             <i class="bi bi-globe me-2"></i>Tasa del Día (API Oficial)
                         </h6>
-                        <?php if ($tasa_api && isset($tasa_api['promedio'])): ?>
+                        <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
                             <p class="mb-1"><strong>Fuente:</strong> <?php echo htmlspecialchars($tasa_api['nombre'] ?? 'Oficial'); ?></p>
                             <p class="mb-1"><strong>Tasa Promedio:</strong> 
                                 <span class="fs-6">1 USD = <?php echo number_format($tasa_api['promedio'], 2); ?> VES</span>
@@ -138,6 +203,12 @@ include __DIR__ . '/../../includes/header.php';
                                     ?>
                                 </p>
                             <?php endif; ?>
+                        <?php elseif ($sin_conexion): ?>
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-wifi-off me-2"></i>
+                                <strong>Sin conexión a internet, tasa no disponible</strong>
+                                <p class="mb-0 small mt-1">Puede ingresar la tasa manualmente en el formulario.</p>
+                            </div>
                         <?php else: ?>
                             <p class="text-danger mb-0">
                                 <i class="bi bi-exclamation-triangle me-1"></i>
