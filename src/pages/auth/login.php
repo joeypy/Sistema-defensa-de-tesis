@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['usuario_id'] = $usuario['id'];
             $_SESSION['usuario_nombre'] = $usuario['nombre'];
             $_SESSION['usuario_rol'] = $usuario['rol'];
-            header("Location: ../index.php");
+            header("Location: /src/pages/index.php");
             exit();
         } else {
             $error = "Contraseña incorrecta";
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - X Sales</title>
-    <link rel="stylesheet" href="../../../assets/css/style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="container">
         <div class="left-panel">
-            <img src="../../../assets/images/logo1.png" alt="X Sales" style="max-width:320px; width:100%; margin-bottom:30px; border-radius:5px;">            <h1>XSALES</h1>
+            <img src="/assets/images/logo1.png" alt="X Sales" style="max-width:320px; width:100%; margin-bottom:30px; border-radius:5px;">            <h1>XSALES</h1>
             <p>Nuestro portal de gestión de compras</p>
         </div>
         <div class="right-panel">

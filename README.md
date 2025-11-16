@@ -36,10 +36,16 @@ docker-compose up -d
 
 ### Credenciales por defecto
 
-Según el archivo `USUARIO.txt`:
+**Credenciales de la aplicación:**
 
 - Usuario: `admin`
 - Contraseña: `admin123`
+
+**Base de datos:**
+
+- Nombre: `sistema_compras_zapatos`
+- Usuario: `root`
+- Contraseña: `rootpassword`
 
 ## 📁 Estructura del Proyecto
 
@@ -76,7 +82,7 @@ Según el archivo `USUARIO.txt`:
 
 2. **Configurar la conexión**
 
-   - Editar `includes/conexion.php` con tus credenciales de base de datos
+   - Editar `src/includes/conexion.php` con tus credenciales de base de datos
 
 3. **Configurar el servidor web**
    - Apuntar el DocumentRoot a la raíz del proyecto
@@ -106,10 +112,12 @@ docker exec -it sistema_compras_db mysql -u root -prootpassword
 
 ## 📝 Notas
 
-- El puerto 8080 está configurado para la aplicación web
-- El puerto 3306 está expuesto para conexiones MySQL externas
+- El puerto **8082** está configurado para la aplicación web (cambió de 8080 porque estaba en uso)
+- El puerto **3306** está expuesto para conexiones MySQL externas
+- El puerto **8081** está configurado para phpMyAdmin
 - Los datos de la base de datos se persisten en un volumen Docker
 - Los archivos SQL en `database/` se ejecutan automáticamente al iniciar el contenedor de MySQL
+- Al acceder a http://localhost:8082, se mostrará automáticamente la pantalla de login
 
 ## 🔧 Configuración
 
