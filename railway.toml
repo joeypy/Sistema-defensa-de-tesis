@@ -1,0 +1,14 @@
+# Configuración de Railway
+# Este archivo fuerza a Railway a usar Docker
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "apache2-foreground"
+healthcheckPath = "/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+

@@ -1,0 +1,15 @@
+# Configuración para Nixpacks (Railway)
+# Este archivo fuerza a Railway a usar Docker en lugar de Nixpacks
+
+[phases.setup]
+nixPkgs = ["php82", "apacheHttpd"]
+
+[phases.install]
+cmds = ["echo 'Using Dockerfile instead of Nixpacks'"]
+
+[phases.build]
+cmds = ["echo 'Using Dockerfile instead of Nixpacks'"]
+
+[start]
+cmd = "apache2-foreground"
+

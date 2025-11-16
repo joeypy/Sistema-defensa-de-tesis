@@ -6,6 +6,11 @@ RUN docker-php-ext-install pdo pdo_mysql mysqli
 # Habilitar mod_rewrite para Apache
 RUN a2enmod rewrite
 
+# Instalar herramientas adicionales
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Configurar el directorio de trabajo
 WORKDIR /var/www/html
 
@@ -24,9 +29,13 @@ RUN echo '<VirtualHost *:80>\n\
         AllowOverride All\n\
         Require all granted\n\
     </Directory>\n\
+    ErrorLog ${APACHE_LOG_DIR}/error.log\n\
+    CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
 
+# Exponer el puerto 80
 EXPOSE 80
 
+# Comando por defecto
 CMD ["apache2-foreground"]
 

@@ -1,0 +1,45 @@
+services:
+  # Servicio Web (PHP/Apache)
+  - type: web
+    name: sistema-compras-web
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: DB_HOST
+        sync: false
+        fromDatabase:
+          name: sistema-compras-db
+          property: host
+      - key: DB_NAME
+        sync: false
+        fromDatabase:
+          name: sistema-compras-db
+          property: database
+      - key: DB_USER
+        sync: false
+        fromDatabase:
+          name: sistema-compras-db
+          property: user
+      - key: DB_PASS
+        sync: false
+        fromDatabase:
+          name: sistema-compras-db
+          property: password
+      - key: PHP_ENV
+        value: production
+
+databases:
+  # Base de datos MySQL
+  # Nota: Render usa PostgreSQL por defecto, pero puedes usar MySQL externo
+  # o configurar MySQL en otro servicio
+  - name: sistema-compras-db
+    plan: free
+    databaseName: sistema_compras_zapatos
+    user: app_user
+    # Si Render soporta MySQL, descomenta:
+    # databaseType: mysql
+    # mysqlVersion: 8.0
+
