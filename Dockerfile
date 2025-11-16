@@ -33,9 +33,25 @@ RUN echo '<VirtualHost *:80>\n\
     CustomLog ${APACHE_LOG_DIR}/access.log combined\n\
 </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
 
-# Exponer el puerto 80
+# Script de inicio que configura el puerto dinámicamente para Railway
+# Railway asigna un puerto dinámico en la variable PORT
+RUN echo '#!/bin/bash\n\
+set -e\n\
+# Railway asigna un puerto dinámico en la variable PORT\n\
+# Necesitamos configurar Apache para usar ese puerto si está disponible\n\
+if [ -n "$PORT" ] && [ "$PORT" != "80" ]; then\n\
+    echo "Configurando Apache para usar puerto $PORT"\n\
+    sed -i "s/Listen 80/Listen $PORT/g" /etc/apache2/ports.conf\n\
+    sed -i "s/*:80/*:$PORT/g" /etc/apache2/sites-available/000-default.conf\n\
+else\n\
+    echo "Usando puerto por defecto 80"\n\
+fi\n\
+exec apache2-foreground' > /usr/local/bin/start-apache.sh && \
+    chmod +x /usr/local/bin/start-apache.sh
+
+# Exponer el puerto 80 (Railway mapeará su puerto dinámico a este)
 EXPOSE 80
 
 # Comando por defecto
-CMD ["apache2-foreground"]
+CMD ["/usr/local/bin/start-apache.sh"]
 
