@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.prod.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (si hay)
+node_modules/
+
+# Database dumps (excepto los de inicialización)
+database/*.sql
+!database/01-schema.sql
+!database/02-data.sql
+!database/init.sql
+
+# Carpetas antiguas que no se deben incluir
+comprar_zapatos/
