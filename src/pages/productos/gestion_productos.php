@@ -5,11 +5,8 @@ include __DIR__ . '/../../includes/auth.php';
 include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
-// Obtener proveedores para el modal y filtro
-$proveedores = $pdo->query("SELECT id, nombre FROM proveedores ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
-
 // Consulta con orden dinámico y filtros
-$allowedSort = ['id', 'nombre', 'precio_compra', 'stock', 'proveedor_nombre', 'stock_minimo'];
+$allowedSort = ['id', 'nombre', 'precio', 'stock', 'stock_minimo'];
 $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort) ? $_GET['sort'] : 'id';
 $order = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'ASC' : 'DESC';
 
@@ -27,9 +24,9 @@ if (!empty($_GET['nombre'])) {
     $params[':nombre'] = '%' . $_GET['nombre'] . '%';
 }
 
-if (!empty($_GET['precio_compra'])) {
-    $filtros[] = "p.precio_compra LIKE :precio_compra";
-    $params[':precio_compra'] = '%' . $_GET['precio_compra'] . '%';
+if (!empty($_GET['precio'])) {
+    $filtros[] = "p.precio LIKE :precio";
+    $params[':precio'] = '%' . $_GET['precio'] . '%';
 }
 
 if (!empty($_GET['stock'])) {
@@ -40,11 +37,6 @@ if (!empty($_GET['stock'])) {
 if (!empty($_GET['stock_minimo'])) {
     $filtros[] = "p.stock_minimo LIKE :stock_minimo";
     $params[':stock_minimo'] = '%' . $_GET['stock_minimo'] . '%';
-}
-
-if (!empty($_GET['proveedor'])) {
-    $filtros[] = "pr.nombre LIKE :proveedor";
-    $params[':proveedor'] = '%' . $_GET['proveedor'] . '%';
 }
 
 $whereClause = !empty($filtros) ? 'WHERE ' . implode(' AND ', $filtros) : '';
@@ -58,7 +50,6 @@ $offset = ($page - 1) * $limit;
 $sqlCount = "
     SELECT COUNT(*) as total
     FROM productos p
-    LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
     $whereClause
 ";
 $totalRecords = $pdo->prepare($sqlCount);
@@ -68,9 +59,8 @@ $totalPages = ceil($total / $limit);
 
 // Consulta con orden dinámico, filtros y paginación
 $sql = "
-    SELECT p.*, pr.nombre AS proveedor_nombre
+    SELECT p.*
     FROM productos p
-    LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
     $whereClause
     ORDER BY $sort $order
     LIMIT $limit OFFSET $offset
@@ -120,20 +110,20 @@ include __DIR__ . '/../../includes/header.php';
                                 ?>
                                 <th><?= sortLink('CÓDIGO', 'id', $sort, $order) ?></th>
                                 <th><?= sortLink('Nombre', 'nombre', $sort, $order) ?></th>
-                                <th><?= sortLink('Precio Compra', 'precio_compra', $sort, $order) ?></th>
+                                <th><?= sortLink('Descripción', 'descripcion', $sort, $order) ?></th>
+                                <th><?= sortLink('Precio', 'precio', $sort, $order) ?></th>
                                 <th><?= sortLink('Stock', 'stock', $sort, $order) ?></th>
                                 <th><?= sortLink('Stock Mínimo', 'stock_minimo', $sort, $order) ?></th>
-                                <th><?= sortLink('Marca', 'proveedor_nombre', $sort, $order) ?></th>
                                 <th class="text-center">Acciones</th>
                             </tr>
                             <!-- Filtros inteligentes -->
                             <tr>
                                 <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Código" name="id" value="<?= htmlspecialchars($_GET['id'] ?? '') ?>"></th>
                                 <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Nombre" name="nombre" value="<?= htmlspecialchars($_GET['nombre'] ?? '') ?>"></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Precio" name="precio_compra" value="<?= htmlspecialchars($_GET['precio_compra'] ?? '') ?>"></th>
+                                <th></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Precio" name="precio" value="<?= htmlspecialchars($_GET['precio'] ?? '') ?>"></th>
                                 <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Stock" name="stock" value="<?= htmlspecialchars($_GET['stock'] ?? '') ?>"></th>
                                 <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Stock Mínimo" name="stock_minimo" value="<?= htmlspecialchars($_GET['stock_minimo'] ?? '') ?>"></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Buscar Marca" name="proveedor" value="<?= htmlspecialchars($_GET['proveedor'] ?? '') ?>"></th>
                                 <th class="text-center">
                                     <button type="submit" class="btn btn-sm btn-primary">Buscar</button>
                                     <a href="gestion_productos.php" class="btn btn-sm btn-outline-secondary ms-1">Limpiar</a>
@@ -145,10 +135,10 @@ include __DIR__ . '/../../includes/header.php';
                         <tr data-producto='<?= json_encode($producto) ?>' id="producto-row-<?= $producto['id'] ?>">
                             <td><?= $producto['id'] ?></td>
                             <td><?= htmlspecialchars($producto['nombre']) ?></td>
-                            <td>$<?= number_format($producto['precio_compra'], 2, ',', '.') ?></td>
+                            <td><?= htmlspecialchars($producto['descripcion'] ?? '') ?></td>
+                            <td>$<?= number_format($producto['precio'], 2, ',', '.') ?></td>
                             <td><?= $producto['stock'] ?></td>
-                            <td><?= $producto['stock_minimo'] ?></td>
-                            <td><?= $producto['proveedor_nombre'] ?: 'N/A' ?></td>
+                            <td><?= $producto['stock_minimo'] ?? 0 ?></td>
                             <td class="text-center">
                                 <div class="btn-group acciones-btn-group" role="group">
                                     <button type="button" class="btn btn-sm btn-primary btn-editar" data-id="<?= $producto['id'] ?>" title="Editar">
@@ -218,8 +208,12 @@ include __DIR__ . '/../../includes/header.php';
                     <input type="text" class="form-control" name="nombre" id="edit-nombre" required maxlength="50">
                 </div>
                 <div class="mb-3">
-                    <label for="edit-precio-compra" class="form-label">Precio Compra</label>
-                    <input type="number" step="0.01" class="form-control" name="precio_compra" id="edit-precio-compra" required min="0" max="99999.99" maxlength="8">
+                    <label for="edit-precio" class="form-label">Precio</label>
+                    <input type="number" step="0.01" class="form-control" name="precio" id="edit-precio" required min="0" max="99999.99" maxlength="8">
+                </div>
+                <div class="mb-3">
+                    <label for="edit-descripcion" class="form-label">Descripción</label>
+                    <input type="text" class="form-control" name="descripcion" id="edit-descripcion" maxlength="50">
                 </div>
                 <div class="mb-3">
                     <label for="edit-stock" class="form-label">Stock <small class="text-muted" id="stock-actual-info"></small></label>
@@ -228,15 +222,7 @@ include __DIR__ . '/../../includes/header.php';
                 </div>
                 <div class="mb-3">
                     <label for="edit-stock-minimo" class="form-label">Stock Mínimo</label>
-                    <input type="number" class="form-control" name="stock_minimo" id="edit-stock-minimo" required min="0" max="9">
-                </div>
-                <div class="mb-3">
-                    <label for="edit-proveedor" class="form-label">Marca</label>
-                    <select class="form-select" name="proveedor_id" id="edit-proveedor" required>
-                        <?php foreach ($proveedores as $prov): ?>
-                            <option value="<?= $prov['id'] ?>"><?= htmlspecialchars($prov['nombre']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <input type="number" class="form-control" name="stock_minimo" id="edit-stock-minimo" required min="0" max="999">
                 </div>
             </div>
             <div class="modal-footer">
@@ -259,16 +245,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const producto = JSON.parse(tr.getAttribute('data-producto'));
             document.getElementById('edit-id').value = producto.id;
             document.getElementById('edit-nombre').value = producto.nombre;
-            document.getElementById('edit-precio-compra').value = producto.precio_compra;
+            document.getElementById('edit-descripcion').value = producto.descripcion || '';
+            document.getElementById('edit-precio').value = producto.precio;
             document.getElementById('edit-stock').value = producto.stock;
-            document.getElementById('edit-stock-minimo').value = producto.stock_minimo;
+            document.getElementById('edit-stock-minimo').value = producto.stock_minimo || 0;
             
             // Mostrar stock actual
             const stockActualInfo = document.getElementById('stock-actual-info');
             if (stockActualInfo) {
                 stockActualInfo.textContent = `(Stock actual: ${producto.stock})`;
             }
-            document.getElementById('edit-proveedor').value = producto.proveedor_id;
 
             var modal = new bootstrap.Modal(document.getElementById('modalEditarProducto'));
             modal.show();
@@ -281,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
             e.target.value = e.target.value.slice(0, 50);
         }
     });
-    document.getElementById('edit-precio-compra').addEventListener('input', function(e) {
+    document.getElementById('edit-precio').addEventListener('input', function(e) {
         // Limita a 8 caracteres
         if (e.target.value.length > 8) {
             e.target.value = e.target.value.slice(0, 8);
@@ -348,14 +334,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-    document.getElementById('edit-stock-minimo').addEventListener('input', function(e) {
-        if (e.target.value.length > 1) {
-            e.target.value = e.target.value.slice(0, 1);
-        }
-        if (parseInt(e.target.value) > 9) {
-            e.target.value = 9;
-        }
-    });
     // Guardar cambios del producto
     document.getElementById('formEditarProducto').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -397,10 +375,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const tr = document.getElementById('producto-row-' + res.producto.id);
                 tr.setAttribute('data-producto', JSON.stringify(res.producto));
                 tr.children[1].textContent = res.producto.nombre;
-                tr.children[2].textContent = '$' + parseFloat(res.producto.precio_compra).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-                tr.children[3].textContent = res.producto.stock;
-                tr.children[4].textContent = res.producto.stock_minimo;
-                tr.children[5].textContent = res.producto.proveedor_nombre || 'N/A';
+                tr.children[2].textContent = res.producto.descripcion || '';
+                tr.children[3].textContent = '$' + parseFloat(res.producto.precio).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                tr.children[4].textContent = res.producto.stock;
+                tr.children[5].textContent = res.producto.stock_minimo || 0;
                 var modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarProducto'));
                 modal.hide();
             } else {
@@ -424,11 +402,47 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => {
                 if (res.success) {
                     document.getElementById('producto-row-' + id).remove();
+                    // Mostrar mensaje de éxito
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                    alertDiv.innerHTML = '<strong>Éxito:</strong> ' + (res.message || 'Producto eliminado exitosamente.') + 
+                        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+                    document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+                    setTimeout(() => alertDiv.remove(), 5000);
                 } else {
-                    alert('Error al eliminar: ' + res.error);
+                    // Mostrar error con HTML usando modal de Bootstrap
+                    const errorModal = document.getElementById('modalErrorEliminar');
+                    if (!errorModal) {
+                        // Crear modal si no existe
+                        const modalHTML = `
+                            <div class="modal fade" id="modalErrorEliminar" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-danger text-white">
+                                            <h5 class="modal-title">
+                                                <i class="bi bi-exclamation-triangle me-2"></i>Error al Eliminar Producto
+                                            </h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body" id="modalErrorEliminarBody">
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        document.body.insertAdjacentHTML('beforeend', modalHTML);
+                    }
+                    document.getElementById('modalErrorEliminarBody').innerHTML = res.error;
+                    const modal = new bootstrap.Modal(document.getElementById('modalErrorEliminar'));
+                    modal.show();
                 }
             })
-            .catch(() => alert('Error de conexión.'));
+            .catch(() => {
+                alert('Error de conexión. Por favor, intente nuevamente.');
+            });
         });
     });
 });

@@ -8,7 +8,7 @@ echo "Inicializando base de datos..."
 
 # Variables de entorno (deben estar configuradas)
 DB_HOST=${DB_HOST:-localhost}
-DB_NAME=${DB_NAME:-sistema_compras_zapatos}
+DB_NAME=${DB_NAME:-sistema_admin}
 DB_USER=${DB_USER:-root}
 DB_PASS=${DB_PASS:-}
 

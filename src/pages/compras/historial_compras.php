@@ -6,7 +6,7 @@ include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
 // Definir columnas permitidas para ordenar
-$allowedSort = ['id', 'fecha', 'marca', 'numero_factura', 'total'];
+$allowedSort = ['id', 'fecha', 'cliente', 'numero_factura', 'total'];
 $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort) ? $_GET['sort'] : 'fecha';
 $order = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'ASC' : 'DESC';
 
@@ -15,22 +15,22 @@ $filtros = [];
 $params = [];
 
 if (!empty($_GET['fecha'])) {
-    $filtros[] = "DATE_FORMAT(c.fecha, '%d/%m/%Y') LIKE :fecha";
+    $filtros[] = "DATE_FORMAT(v.fecha, '%d/%m/%Y') LIKE :fecha";
     $params[':fecha'] = '%' . $_GET['fecha'] . '%';
 }
 
-if (!empty($_GET['marca'])) {
-    $filtros[] = "m.nombre LIKE :marca";
-    $params[':marca'] = '%' . $_GET['marca'] . '%';
+if (!empty($_GET['cliente'])) {
+    $filtros[] = "cl.nombre LIKE :cliente";
+    $params[':cliente'] = '%' . $_GET['cliente'] . '%';
 }
 
 if (!empty($_GET['factura'])) {
-    $filtros[] = "f.numero_factura LIKE :factura";
+    $filtros[] = "v.numero_factura LIKE :factura";
     $params[':factura'] = '%' . $_GET['factura'] . '%';
 }
 
 if (!empty($_GET['total'])) {
-    $filtros[] = "c.total LIKE :total";
+    $filtros[] = "v.total_dolares LIKE :total";
     $params[':total'] = '%' . $_GET['total'] . '%';
 }
 
@@ -43,11 +43,9 @@ $offset = ($page - 1) * $limit;
 
 // Consulta para contar total de registros
 $sqlCount = "
-    SELECT COUNT(DISTINCT c.id) as total
-    FROM compras c
-    LEFT JOIN detalles_compra dc ON dc.compra_id = c.id
-    LEFT JOIN marcas m ON dc.marca_id = m.id
-    LEFT JOIN facturas_compras f ON f.compra_id = c.id
+    SELECT COUNT(DISTINCT v.id) as total
+    FROM ventas v
+    JOIN clientes cl ON v.cliente_id = cl.id
     $whereClause
 ";
 $totalRecords = $pdo->prepare($sqlCount);
@@ -57,20 +55,17 @@ $totalPages = ceil($total / $limit);
 
 // Consulta con orden dinámico, filtros y paginación
 $sql = "
-    SELECT c.id, c.fecha, COALESCE(GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', '), 'Sin marca') AS marca, c.total, COALESCE(MAX(f.numero_factura), 'Sin factura') AS numero_factura
-    FROM compras c
-    LEFT JOIN detalles_compra dc ON dc.compra_id = c.id
-    LEFT JOIN marcas m ON dc.marca_id = m.id
-    LEFT JOIN facturas_compras f ON f.compra_id = c.id
+    SELECT v.id, v.fecha, cl.nombre AS cliente, v.total_dolares, v.numero_factura
+    FROM ventas v
+    JOIN clientes cl ON v.cliente_id = cl.id
     $whereClause
-    GROUP BY c.id, c.fecha, c.total
     ORDER BY $sort $order
     LIMIT $limit OFFSET $offset
 ";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$compras = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$ventas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 include __DIR__ . '/../../includes/header.php';
 ?>
@@ -94,10 +89,10 @@ include __DIR__ . '/../../includes/header.php';
                                placeholder="dd/mm/yyyy">
                     </div>
                     <div class="col-md-2">
-                        <label for="marca" class="form-label">Marca</label>
-                        <input type="text" class="form-control" id="marca" name="marca" 
-                               value="<?= htmlspecialchars($_GET['marca'] ?? '') ?>" 
-                               placeholder="Buscar marca">
+                        <label for="cliente" class="form-label">Cliente</label>
+                        <input type="text" class="form-control" id="cliente" name="cliente" 
+                               value="<?= htmlspecialchars($_GET['cliente'] ?? '') ?>" 
+                               placeholder="Buscar cliente">
                     </div>
                     <div class="col-md-2">
                         <label for="factura" class="form-label">Factura</label>
@@ -113,7 +108,7 @@ include __DIR__ . '/../../includes/header.php';
                     </div>
                     <div class="col-md-2">
                         <label for="limit" class="form-label">Mostrar</label>
-                        <select class="form-select" id="limit" name="limit" onchange="this.form.submit()">
+                        <select class="form-select select2-limit" id="limit" name="limit">
                             <option value="10" <?= $limit == 10 ? 'selected' : '' ?>>10</option>
                             <option value="30" <?= $limit == 30 ? 'selected' : '' ?>>30</option>
                             <option value="50" <?= $limit == 50 ? 'selected' : '' ?>>50</option>
@@ -162,30 +157,30 @@ include __DIR__ . '/../../includes/header.php';
                             }
                             ?>
                             <th><?= sortLink('Fecha', 'fecha', $sort, $order) ?></th>
-                                                        <th><?= sortLink('Marca', 'marca', $sort, $order) ?></th>
+                            <th><?= sortLink('Cliente', 'cliente', $sort, $order) ?></th>
                             <th><?= sortLink('Factura', 'numero_factura', $sort, $order) ?></th>
                             <th><?= sortLink('Total', 'total', $sort, $order) ?></th>
                             <th class="text-center">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($compras as $compra): ?>
+                        <?php foreach ($ventas as $venta): ?>
                         <tr>
-                            <td><?= date('d/m/Y', strtotime($compra['fecha'])) ?></td>
-                            <td><?= htmlspecialchars($compra['marca']) ?></td>
-                            <td><?= htmlspecialchars($compra['numero_factura']) ?></td>
-                            <td>$<?= number_format($compra['total'], 2, ',', '.') ?></td>
+                            <td><?= date('d/m/Y', strtotime($venta['fecha'])) ?></td>
+                            <td><?= htmlspecialchars($venta['cliente']) ?></td>
+                            <td><?= htmlspecialchars($venta['numero_factura']) ?></td>
+                            <td>$<?= number_format($venta['total_dolares'], 2, ',', '.') ?></td>
                             <td class="text-center">
-                                <a href="<?= PAGES_URL ?>/compras/detalle_compra.php?id=<?= $compra['id'] ?>" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Ver Detalle">
+                                <a href="<?= PAGES_URL ?>/compras/detalle_compra.php?id=<?= $venta['id'] ?>" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Ver Detalle">
                                     <i class="bi bi-eye"></i> Ver Detalle
                                 </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($compras)): ?>
+                        <?php if (empty($ventas)): ?>
                         <tr>
                             <td colspan="5" class="text-center text-muted py-4">
-                                <i class="bi bi-exclamation-circle me-2"></i>No hay compras registradas.
+                                <i class="bi bi-exclamation-circle me-2"></i>No hay ventas registradas.
                             </td>
                         </tr>
                         <?php endif; ?>
@@ -228,6 +223,16 @@ include __DIR__ . '/../../includes/header.php';
 document.addEventListener('DOMContentLoaded', function() {
     let searchTimeout;
     
+    // Inicializar Select2 para el select de límite
+    $('.select2-limit').select2({
+        placeholder: 'Mostrar...',
+        allowClear: false,
+        width: '100%',
+        minimumResultsForSearch: Infinity
+    }).on('change', function() {
+        document.getElementById('filtro-form').submit();
+    });
+    
     // Función para aplicar filtros con delay
     function aplicarFiltros() {
         clearTimeout(searchTimeout);
@@ -238,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Agregar event listeners a los campos de filtro
     document.getElementById('fecha').addEventListener('input', aplicarFiltros);
-    document.getElementById('marca').addEventListener('input', aplicarFiltros);
+    document.getElementById('cliente').addEventListener('input', aplicarFiltros);
     document.getElementById('factura').addEventListener('input', aplicarFiltros);
     document.getElementById('total').addEventListener('input', aplicarFiltros);
     

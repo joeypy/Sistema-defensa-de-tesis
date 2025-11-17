@@ -1,6 +1,6 @@
-# Sistema de Gestión de Compras - Defensa de Tesis
+# Sistema de Gestión de Ventas - Defensa de Tesis
 
-Sistema web para la gestión de compras de zapatos desarrollado en PHP.
+Sistema web para la gestión de ventas de zapatos desarrollado en PHP.
 
 ## 🚀 Inicio Rápido con Docker
 
@@ -25,8 +25,7 @@ Asegúrate de tener estos archivos en el proyecto:
 - `Dockerfile`
 - `docker-compose.yml`
 - `database/init.sql`
-- `database/01-schema.sql`
-- `database/02-data.sql`
+- `database/11-schema-final-ventas.sql`
 
 #### Paso 3: Levantar los Contenedores
 
@@ -50,9 +49,9 @@ docker-compose ps
 
 Deberías ver 3 contenedores corriendo:
 
-- `sistema_compras_web` (PHP/Apache)
-- `sistema_compras_db` (MySQL)
-- `sistema_compras_phpmyadmin` (phpMyAdmin)
+- `sistema_admin_web` (PHP/Apache)
+- `sistema_admin_db` (MySQL)
+- `sistema_admin_phpmyadmin` (phpMyAdmin)
 
 #### Paso 5: Ver los Logs (Opcional)
 
@@ -82,9 +81,8 @@ Una vez que los contenedores estén corriendo:
 
 La base de datos se inicializa automáticamente. Los scripts se ejecutan en este orden:
 
-1. `database/init.sql` - Crea la base de datos
-2. `database/01-schema.sql` - Crea todas las tablas
-3. `database/02-data.sql` - Inserta datos iniciales (usuario admin)
+1. `database/init.sql` - Crea la base de datos `sistema_admin`
+2. `database/11-schema-final-ventas.sql` - Crea todas las tablas y datos iniciales
 
 Puedes verificar en phpMyAdmin que las tablas se hayan creado correctamente.
 
@@ -112,7 +110,7 @@ docker-compose build
 docker-compose ps
 
 # Acceder al contenedor de la base de datos
-docker-compose exec db mysql -u root -prootpassword sistema_compras_zapatos
+docker-compose exec db mysql -u root -prootpassword sistema_admin
 
 # Acceder al contenedor web
 docker-compose exec web bash
@@ -154,7 +152,7 @@ docker-compose logs db
 
 **Base de datos:**
 
-- Nombre: `sistema_compras_zapatos`
+- Nombre: `sistema_admin`
 - Usuario: `root`
 - Contraseña: `rootpassword`
 
@@ -166,15 +164,255 @@ docker-compose logs db
 ├── includes/        # Archivos PHP compartidos (auth, conexion, header, footer)
 ├── src/            # Módulos de la aplicación
 │   ├── clientes/
-│   ├── compras/
+│   ├── ventas/     # Gestión de ventas (antes admin/)
 │   ├── productos/
-│   ├── proveedores/
 │   ├── reportes/
 │   └── tasa/
 ├── database/       # Scripts SQL de la base de datos
 ├── Dockerfile      # Configuración de la imagen PHP
 └── docker-compose.yml  # Configuración de servicios Docker
 ```
+
+## 🗄️ Estructura de la Base de Datos
+
+### Tablas Principales
+
+El sistema utiliza una estructura simplificada enfocada en **ventas**:
+
+1. **`usuarios`** - Autenticación y gestión de usuarios ✅
+2. **`clientes`** - Información de clientes ✅
+3. **`productos`** - Catálogo de productos
+4. **`ventas`** - Registro de ventas
+5. **`detalles_venta`** - Detalles de productos en cada venta
+6. **`metodo_pago`** - Métodos de pago disponibles
+7. **`tasa_diaria`** - Tasa de cambio USD/VES
+
+### Diagrama de Relaciones (Mermaid)
+
+```mermaid
+erDiagram
+    usuarios ||--o{ ventas : "registra"
+    clientes ||--o{ ventas : "ventas"
+    productos ||--o{ detalles_venta : "incluye"
+    ventas ||--o{ detalles_venta : "contiene"
+    metodo_pago ||--o{ ventas : "usa"
+
+    usuarios {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar nombre
+        varchar email
+        varchar direccion
+        varchar telefono
+    }
+
+    clientes {
+        int id PK
+        varchar nombre
+        varchar identificacion UK
+        text direccion
+        varchar telefono
+        varchar email
+        timestamp creado_en
+    }
+
+    productos {
+        int id PK
+        varchar nombre
+        varchar descripcion
+        decimal precio
+        int stock
+        int stock_minimo
+    }
+
+    metodo_pago {
+        int id PK
+        varchar nombre UK
+        tinyint requiere_referencia
+    }
+
+    ventas {
+        int id PK
+        int cliente_id FK
+        datetime fecha
+        decimal total_dolares
+        decimal total_bs
+        varchar numero_factura
+        varchar numero_control
+        int metodo_pago_id FK
+        varchar numero_referencia
+    }
+
+    detalles_venta {
+        int id PK
+        int venta_id FK
+        int producto_id FK
+        int cantidad
+        decimal precio_unitario
+        decimal subtotal
+        tinyint descuento
+    }
+
+    tasa_diaria {
+        int id PK
+        date fecha UK
+        decimal tasa
+        varchar descripcion
+    }
+```
+
+## 📊 Diagramas de Flujo de Procesos
+
+### 1. Proceso de Registro de Ventas
+
+```mermaid
+flowchart TD
+    A[Ir a Registrar Venta] --> B[Seleccionar Cliente]
+    B --> C[Agregar Producto]
+    C --> D[Seleccionar Producto del Listado]
+    D --> E[Ingresar Cantidad]
+    E --> F{¿Aplicar Descuento 10%?}
+    F -->|Sí| G[Marcar Checkbox Descuento]
+    F -->|No| H[Ver Subtotal Calculado]
+    G --> H
+    H --> I{¿Agregar más productos?}
+    I -->|Sí| C
+    I -->|No| J[Ingresar Número de Factura]
+    J --> K[Ingresar Número de Control]
+    K --> L[Seleccionar Método de Pago]
+    L --> M{¿Requiere Referencia?}
+    M -->|Sí| N[Ingresar Número de Referencia]
+    M -->|No| O[Ver Totales USD y BS]
+    N --> O
+    O --> P[Click en Registrar Venta]
+    P --> Q{¿Datos válidos?}
+    Q -->|No| R[Ver Mensaje de Error]
+    R --> B
+    Q -->|Sí| S[Ver Mensaje: Venta Registrada]
+    S --> T[Fin]
+```
+
+### 2. Proceso de Generación de Reportes
+
+```mermaid
+flowchart TD
+    A[Ir a Reportes] --> B[Seleccionar Tipo de Reporte]
+    B --> C{Tipo de Reporte}
+    C -->|Resumen de Ventas| D[Seleccionar Fecha Inicio]
+    C -->|Ventas por Cliente| D
+    C -->|Stock de Inventario| E[Click en Generar]
+    D --> F[Seleccionar Fecha Fin]
+    F --> G[Seleccionar Cliente]
+    G --> E
+    E --> H[Ver Reporte en Pantalla]
+    H --> I{¿Exportar a PDF?}
+    I -->|Sí| J[Click en Exportar PDF]
+    I -->|No| K[Fin]
+    J --> L[Descargar PDF]
+    L --> K
+```
+
+### 3. Proceso de Creación de Clientes
+
+```mermaid
+flowchart TD
+    A[Ir a Nuevo Cliente] --> B[Ingresar Nombre]
+    B --> C[Ingresar Identificación]
+    C --> D[Ingresar Dirección]
+    D --> E[Ingresar Teléfono]
+    E --> F[Ingresar Email]
+    F --> G[Click en Guardar Cliente]
+    G --> H{¿Datos válidos?}
+    H -->|No| I[Ver Mensaje de Error]
+    I --> B
+    H -->|Sí| J[Ver Mensaje: Cliente Creado]
+    J --> K[Redirigir a Lista de Clientes]
+    K --> L[Fin]
+```
+
+### 4. Proceso de Creación de Productos
+
+```mermaid
+flowchart TD
+    A[Ir a Nuevo Producto] --> B[Ingresar Nombre]
+    B --> C[Ingresar Descripción]
+    C --> D[Ingresar Precio]
+    D --> E[Ingresar Stock Mínimo]
+    E --> F[Click en Guardar Producto]
+    F --> G{¿Datos válidos?}
+    G -->|No| H[Ver Mensaje de Error]
+    H --> B
+    G -->|Sí| I[Ver Mensaje: Producto Creado]
+    I --> J[Redirigir a Lista de Productos]
+    J --> K[Fin]
+```
+
+### 5. Proceso de Gestión de Tasa Diaria
+
+```mermaid
+flowchart TD
+    A[Ir a Gestión de Tasa] --> B[Ver Tasa de API]
+    B --> C{¿Usar Tasa de API?}
+    C -->|Sí| D[Seleccionar: Usar tasa de la API]
+    C -->|No| E[Seleccionar: Ingresar manualmente]
+    D --> F[Ver Campo Tasa Pre-llenado]
+    E --> G[Ingresar Tasa Manualmente]
+    F --> H[Ingresar Fecha]
+    G --> H
+    H --> I[Ingresar Descripción]
+    I --> J[Click en Guardar Tasa]
+    J --> K{¿Tasa válida?}
+    K -->|No| L[Ver Mensaje de Error]
+    L --> H
+    K -->|Sí| M[Ver Mensaje: Tasa Guardada]
+    M --> N[Ver Tasa Actualizada en Card]
+    N --> O[Fin]
+```
+
+### Descripción de Tablas
+
+#### `usuarios`
+
+- Almacena información de usuarios del sistema
+- Usado para autenticación y registro de quién realiza las ventas
+
+#### `clientes`
+
+- Información de clientes que realizan ventas
+- Contacto unificado (teléfono y email en la misma tabla)
+
+#### `productos`
+
+- Catálogo de productos disponibles
+- Precio unificado (no hay precio de compra/venta separados)
+- `stock`: Cantidad actual disponible
+- `stock_minimo`: Nivel mínimo de stock para alertas
+- Stock que se descuenta automáticamente al vender mediante trigger
+
+#### `ventas`
+
+- Registro principal de cada venta
+- Incluye información fiscal (número de factura y control)
+- Almacena totales en USD y BS
+- Relación con método de pago
+
+#### `detalles_venta`
+
+- Productos incluidos en cada venta
+- Permite múltiples productos por venta
+- Registra si se aplicó descuento del 10%
+- **Trigger automático:** Descuenta stock al insertar
+
+#### `metodo_pago`
+
+- Catálogo de métodos de pago disponibles
+- Indica si requiere número de referencia
+
+#### `tasa_diaria`
+
+- Tasa de cambio USD/VES por día
+- Usada para calcular totales en BS
 
 ## 🛠️ Desarrollo Local (sin Docker)
 
@@ -188,8 +426,8 @@ docker-compose logs db
 
 1. **Configurar la base de datos**
 
-   - Crear una base de datos llamada `sistema_compras_zapatos`
-   - Importar el script SQL desde `database/sistema_compras_zapatos (18).sql`
+   - Crear una base de datos llamada `sistema_admin`
+   - Importar el script SQL desde `database/11-schema-final-ventas.sql`
 
 2. **Configurar la conexión**
 
@@ -234,7 +472,7 @@ Asegúrate de que tu código esté en un repositorio Git (GitHub, GitLab, Bitbuc
 2. Click en **"New +"** → **"Web Service"**
 3. Conecta tu repositorio Git
 4. Configura el servicio:
-   - **Name**: `sistema-compras-web`
+   - **Name**: `sistema-admin-web`
    - **Environment**: `Docker`
    - **Dockerfile Path**: `./Dockerfile`
    - **Docker Context**: `.`
@@ -247,7 +485,7 @@ En la sección **"Environment"** del servicio web, agrega estas variables:
 
 ```
 DB_HOST=<host-de-tu-mysql-externo>
-DB_NAME=sistema_compras_zapatos
+DB_NAME=sistema_admin
 DB_USER=<usuario-de-tu-mysql>
 DB_PASS=<contraseña-de-tu-mysql>
 PHP_ENV=production
@@ -257,7 +495,7 @@ PHP_ENV=production
 
 ```
 DB_HOST=aws.connect.psdb.cloud
-DB_NAME=sistema_compras_zapatos
+DB_NAME=sistema_admin
 DB_USER=tu_usuario
 DB_PASS=tu_contraseña
 PHP_ENV=production
@@ -278,8 +516,7 @@ Después del despliegue, necesitas ejecutar los scripts SQL:
 ```bash
 # Conectarte a tu base de datos MySQL externa
 mysql -h <host> -u <usuario> -p <database> < database/init.sql
-mysql -h <host> -u <usuario> -p <database> < database/01-schema.sql
-mysql -h <host> -u <usuario> -p <database> < database/02-data.sql
+mysql -h <host> -u <usuario> -p <database> < database/11-schema-final-ventas.sql
 ```
 
 **Opción 2: Desde Render Shell**
@@ -290,15 +527,14 @@ mysql -h <host> -u <usuario> -p <database> < database/02-data.sql
 
 ```bash
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/init.sql
-mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/01-schema.sql
-mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/02-data.sql
+mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/11-schema-final-ventas.sql
 ```
 
 **Opción 3: Usar un cliente MySQL**
 
 - Usa MySQL Workbench, DBeaver o phpMyAdmin
 - Conéctate a tu base de datos externa
-- Ejecuta los scripts SQL en orden
+- Ejecuta primero `database/init.sql` y luego `database/11-schema-final-ventas.sql`
 
 #### Paso 7: Verificar el Despliegue
 
@@ -374,8 +610,7 @@ En cada servicio, puedes agregar variables de entorno personalizadas si lo neces
 4. Ejecuta los scripts SQL en orden:
    ```sql
    -- Ejecuta el contenido de database/init.sql
-   -- Luego database/01-schema.sql
-   -- Finalmente database/02-data.sql
+   -- Luego database/11-schema-final-ventas.sql
    ```
 
 **Opción 2: Desde tu máquina local**
@@ -384,15 +619,14 @@ En cada servicio, puedes agregar variables de entorno personalizadas si lo neces
 # Obtén las credenciales de Railway MySQL
 # Luego ejecuta:
 mysql -h <MYSQLHOST> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/init.sql
-mysql -h <MYSQLHOST> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/01-schema.sql
-mysql -h <MYSQLHOST> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/02-data.sql
+mysql -h <MYSQLHOST> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database/11-schema-final-ventas.sql
 ```
 
 **Opción 3: Usar un cliente MySQL**
 
 - Usa MySQL Workbench, DBeaver o TablePlus
 - Conéctate usando las credenciales de Railway
-- Ejecuta los scripts SQL manualmente
+- Ejecuta primero `database/init.sql` y luego `database/11-schema-final-ventas.sql`
 
 #### Paso 6: Desplegar
 
@@ -423,9 +657,9 @@ mysql -h <MYSQLHOST> -u <MYSQLUSER> -p<MYSQLPASSWORD> <MYSQLDATABASE> < database
 - Fuerza el uso de Dockerfile en la configuración
 - Los archivos `railway.json` y `railway.toml` deberían ayudar
 
-**Error: Detecta carpeta `comprar_zapatos`**
+**Error: Detecta carpeta no deseada**
 
-- Elimina esa carpeta del repositorio si existe
+- Elimina cualquier carpeta no necesaria del repositorio
 - Haz commit y push de los cambios
 - Vuelve a desplegar
 
@@ -454,9 +688,8 @@ Para más detalles, consulta [RAILWAY-SETUP.md](RAILWAY-SETUP.md)
 - ✅ `railway.json` - Configuración para Railway (fuerza uso de Dockerfile)
 - ✅ `railway.toml` - Configuración alternativa para Railway
 - ✅ `nixpacks.toml` - Configuración para forzar Docker en Nixpacks
-- ✅ `database/init.sql` - Crea la base de datos
-- ✅ `database/01-schema.sql` - Crea todas las tablas
-- ✅ `database/02-data.sql` - Inserta datos iniciales (usuario admin)
+- ✅ `database/init.sql` - Crea la base de datos `sistema_admin`
+- ✅ `database/11-schema-final-ventas.sql` - Crea todas las tablas y datos iniciales
 
 ### Solución de Problemas en Producción
 
@@ -480,8 +713,6 @@ Para más detalles, consulta [RAILWAY-SETUP.md](RAILWAY-SETUP.md)
 
 ### Recursos Adicionales
 
-- [README-DEPLOY.md](README-DEPLOY.md) - Guía detallada de despliegue
-- [DEPLOY.md](DEPLOY.md) - Instrucciones adicionales
 - [Documentación de Render](https://render.com/docs)
 - [Documentación de Railway](https://docs.railway.app)
 
@@ -501,10 +732,10 @@ docker-compose down
 docker-compose build --no-cache
 
 # Acceder al contenedor PHP
-docker exec -it sistema_compras_web bash
+docker exec -it sistema_admin_web bash
 
 # Acceder a MySQL
-docker exec -it sistema_compras_db mysql -u root -prootpassword
+docker exec -it sistema_admin_db mysql -u root -prootpassword sistema_admin
 ```
 
 ## 📝 Notas

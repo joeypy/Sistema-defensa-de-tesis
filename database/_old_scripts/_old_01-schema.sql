@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 -- Usar la base de datos
-USE sistema_compras_zapatos;
+USE sistema_admin;
 
 -- --------------------------------------------------------
 
@@ -126,38 +126,38 @@ INSERT INTO `compras` (`id`, `fecha`, `cliente_id`, `usuario_id`, `total`) VALUE
 CREATE TABLE `detalles_compra` (
   `id` int(11) NOT NULL,
   `compra_id` int(11) NOT NULL,
-  `marca_id` int(11) NOT NULL,
   `producto_id` int(11) NOT NULL,
   `cantidad` int(3) NOT NULL,
   `precio_unitario` decimal(5,2) NOT NULL,
-  `subtotal` decimal(5,2) NOT NULL
+  `subtotal` decimal(5,2) NOT NULL,
+  `descuento` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 si se aplicó descuento del 10%, 0 si no'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `detalles_compra`
 --
 
-INSERT INTO `detalles_compra` (`id`, `compra_id`, `marca_id`, `producto_id`, `cantidad`, `precio_unitario`, `subtotal`) VALUES
-(1, 10, 0, 17, 1, 40.00, 40.00),
-(2, 11, 0, 9, 1, 50.00, 50.00),
-(3, 12, 0, 18, 1, 60.00, 60.00),
-(4, 13, 0, 18, 1, 60.00, 60.00),
-(5, 14, 0, 19, 1, 40.00, 40.00),
-(6, 15, 0, 20, 4, 55.00, 220.00),
-(7, 16, 0, 18, 1, 60.00, 60.00),
-(8, 17, 0, 21, 1, 40.00, 40.00),
-(9, 18, 0, 18, 1, 60.00, 60.00),
-(10, 19, 0, 22, 4, 75.00, 300.00),
-(11, 20, 0, 8, 4, 50.00, 200.00),
-(12, 21, 0, 21, 1, 40.00, 40.00),
-(13, 21, 0, 19, 1, 40.00, 40.00),
-(14, 25, 3, 14, 1, 40.00, 36.00),
-(15, 25, 4, 10, 1, 55.00, 55.00),
-(16, 26, 2, 18, 1, 60.00, 60.00),
-(17, 26, 3, 17, 1, 40.00, 36.00),
-(18, 27, 2, 18, 1, 60.00, 60.00),
-(19, 27, 1, 1, 1, 90.00, 90.00),
-(20, 28, 2, 7, 1, 60.00, 60.00);
+INSERT INTO `detalles_compra` (`id`, `compra_id`, `producto_id`, `cantidad`, `precio_unitario`, `subtotal`, `descuento`) VALUES
+(1, 10, 17, 1, 40.00, 40.00, 0),
+(2, 11, 9, 1, 50.00, 50.00, 0),
+(3, 12, 18, 1, 60.00, 60.00, 0),
+(4, 13, 18, 1, 60.00, 60.00, 0),
+(5, 14, 19, 1, 40.00, 40.00, 0),
+(6, 15, 20, 4, 55.00, 220.00, 0),
+(7, 16, 18, 1, 60.00, 60.00, 0),
+(8, 17, 21, 1, 40.00, 40.00, 0),
+(9, 18, 18, 1, 60.00, 60.00, 0),
+(10, 19, 22, 4, 75.00, 300.00, 0),
+(11, 20, 8, 4, 50.00, 200.00, 0),
+(12, 21, 21, 1, 40.00, 40.00, 0),
+(13, 21, 19, 1, 40.00, 40.00, 0),
+(14, 25, 14, 1, 40.00, 36.00, 1),
+(15, 25, 10, 1, 55.00, 55.00, 0),
+(16, 26, 18, 1, 60.00, 60.00, 0),
+(17, 26, 17, 1, 40.00, 36.00, 1),
+(18, 27, 18, 1, 60.00, 60.00, 0),
+(19, 27, 1, 1, 90.00, 90.00, 0),
+(20, 28, 7, 1, 60.00, 60.00, 0);
 
 -- --------------------------------------------------------
 
@@ -274,8 +274,7 @@ INSERT INTO `fotos_productos` (`id`, `producto_id`, `url`) VALUES
 CREATE TABLE `historial_precios` (
   `id` int(11) NOT NULL,
   `producto_id` int(11) NOT NULL,
-  `precio_compra` decimal(5,2) NOT NULL,
-  `precio_venta` decimal(5,2) NOT NULL,
+  `precio` decimal(5,2) NOT NULL,
   `fecha` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -283,43 +282,16 @@ CREATE TABLE `historial_precios` (
 -- Volcado de datos para la tabla `historial_precios`
 --
 
-INSERT INTO `historial_precios` (`id`, `producto_id`, `precio_compra`, `precio_venta`, `fecha`) VALUES
-(1, 1, 85.00, 140.00, '2025-06-01 10:00:00'),
-(2, 1, 90.00, 150.00, '2025-07-01 10:00:00'),
-(3, 4, 70.00, 120.00, '2025-05-15 11:30:00'),
-(4, 4, 75.00, 130.00, '2025-06-15 11:30:00'),
-(5, 6, 55.00, 100.00, '2025-06-10 09:00:00'),
-(6, 6, 60.00, 110.00, '2025-07-01 09:00:00');
+INSERT INTO `historial_precios` (`id`, `producto_id`, `precio`, `fecha`) VALUES
+(1, 1, 85.00, '2025-06-01 10:00:00'),
+(2, 1, 90.00, '2025-07-01 10:00:00'),
+(3, 4, 70.00, '2025-05-15 11:30:00'),
+(4, 4, 75.00, '2025-06-15 11:30:00'),
+(5, 6, 55.00, '2025-06-10 09:00:00'),
+(6, 6, 60.00, '2025-07-01 09:00:00');
 
 -- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `marcas`
---
-
-CREATE TABLE `marcas` (
-  `id` int(11) NOT NULL,
-  `nombre` varchar(100) NOT NULL,
-  `foto` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Volcado de datos para la tabla `marcas`
---
-
-INSERT INTO `marcas` (`id`, `nombre`, `foto`) VALUES
-(1, 'Adidas Originals', 'assets/img/marcas/adidas originals.png'),
-(2, 'Nike', 'assets/img/marcas/nike.png'),
-(3, 'Puma', 'assets/img/marcas/puma.png'),
-(4, 'Reebok', 'assets/img/marcas/reebok.jpg'),
-(5, 'Adidas Performance', 'assets/img/marcas/adperfor.png'),
-(9, 'New Balance', 'assets/img/marcas/New Balance.png'),
-(10, 'Vans', 'assets/img/marcas/vans.jpg'),
-(11, 'Converse', 'assets/img/marcas/Converse.jpg'),
-(12, 'Skechers', 'assets/img/marcas/Skechers.png'),
-(13, 'Lacoste', 'assets/img/marcas/lacoste-logo-png_seeklogo-81686.png'),
-(34, 'pull&bear', 'assets/img/marcas/pullybear12.jpg');
-
+-- Tabla marcas eliminada - ya no se usa en el sistema
 -- --------------------------------------------------------
 
 --
@@ -437,50 +409,48 @@ CREATE TABLE `productos` (
   `nombre` varchar(50) NOT NULL,
   `descripcion` varchar(50) DEFAULT NULL,
   `color` varchar(20) DEFAULT NULL,
-  `precio_compra` decimal(5,2) NOT NULL,
-  `precio_venta` decimal(5,2) NOT NULL,
+  `precio` decimal(5,2) NOT NULL,
   `stock` int(11) DEFAULT 0,
   `proveedor_id` int(11) DEFAULT NULL,
   `stock_minimo` int(11) DEFAULT 2,
-  `imagen_path` varchar(255) DEFAULT 'default_shoe.jpg',
-  `marca_id` int(11) DEFAULT NULL
+  `imagen_path` varchar(255) DEFAULT 'default_shoe.jpg'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `productos`
 --
 
-INSERT INTO `productos` (`id`, `nombre`, `descripcion`, `color`, `precio_compra`, `precio_venta`, `stock`, `proveedor_id`, `stock_minimo`, `imagen_path`, `marca_id`) VALUES
-(1, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Negro', 90.00, 150.00, 1, 1, 5, 'Adidas Ultraboost 232.png', 1),
-(2, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Negro', 90.00, 150.00, 14, 1, 5, 'Adidas Ultraboost 232.png', 1),
-(3, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Blanco', 90.00, 150.00, -1, 1, 5, 'Adidas Ultraboost 23 blanco.png', 1),
-(4, 'Nike Air Max 90', 'Icono del streetwear', 'Gris', 75.00, 130.00, 24, 2, 8, 'Nike Air Max 901.png', 2),
-(5, 'Nike Air Max 90', 'Icono del streetwear', 'Gris', 75.00, 130.00, 22, 2, 8, 'Nike Air Max 901.png', 2),
-(6, 'Nike Air Force 1', 'Clásico atemporal', 'Blanco', 60.00, 110.00, 24, 2, 10, 'nike air force 1 blanco.png', 2),
-(7, 'Nike Air Force 1', 'Clásico atemporal', 'Blanco', 60.00, 110.00, 17, 2, 10, 'nike air force 1 blanco.png', 2),
-(8, 'Puma Suede Classic', 'Estilo retro y comodidad', 'Rojo', 50.00, 90.00, 15, 3, 4, 'Puma Suede Classic rojo.png', 3),
-(9, 'Puma Suede Classic', 'Estilo retro y comodidad', 'Negro', 50.00, 90.00, 10, 3, 4, 'Puma Suede Classic negro.png', 3),
-(10, 'Reebok Club C 85', 'Estilo tenis vintage', 'Verde', 55.00, 100.00, 18, 4, 6, 'Reebok Club C 85 verde.png', 4),
-(11, 'Reebok Club C 85', 'Estilo tenis vintage', 'Verde', 55.00, 100.00, 14, 4, 6, 'Reebok Club C 85 verde.png', 4),
-(12, 'Adidas Stan Smith', 'Clásico de la cancha', 'Blanco/Verde', 65.00, 115.00, -1, 1, 7, 'Adidas Stan Smith.png', 1),
-(13, 'Nike Cortez', 'Primeras zapatillas de running de Nike', 'Blanco/Rojo', 58.00, 105.00, 15, 2, 5, 'Nike Cortez blanco rojo.png', 2),
-(14, 'Puma Future Rider', 'Inspiración retro-futurista', 'Amarillo', 40.00, 75.00, 7, 3, 3, 'Puma Future Rider amarillo.png', 3),
-(15, 'Reebok Classic Nylon', 'Comodidad y durabilidad', 'Rosa', 38.00, 70.00, 9, 4, 3, 'Reebok Classic Nylon.png', 4),
-(17, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 75.00, 2, 3, 3, 'default_shoe.jpg', 3),
-(18, 'Nike Air Force 1', NULL, 'Blanco', 60.00, 110.00, 6, 2, 10, 'default_shoe.jpg', 2),
-(19, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 75.00, 2, 3, 3, 'default_shoe.jpg', 3),
-(20, 'Reebok Club C 85', NULL, 'Verde', 55.00, 100.00, 4, 4, 6, 'default_shoe.jpg', 4),
-(21, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 75.00, 2, 3, 3, 'default_shoe.jpg', 3),
-(22, 'Nike Air Max 90', NULL, 'Gris', 75.00, 130.00, 4, 2, 8, 'default_shoe.jpg', 2);
+INSERT INTO `productos` (`id`, `nombre`, `descripcion`, `color`, `precio`, `stock`, `proveedor_id`, `stock_minimo`, `imagen_path`) VALUES
+(1, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Negro', 90.00, 1, 1, 5, 'Adidas Ultraboost 232.png'),
+(2, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Negro', 90.00, 14, 1, 5, 'Adidas Ultraboost 232.png'),
+(3, 'Adidas Ultraboost 23', 'Zapatillas de running de alto rendimiento', 'Blanco', 90.00, -1, 1, 5, 'Adidas Ultraboost 23 blanco.png'),
+(4, 'Nike Air Max 90', 'Icono del streetwear', 'Gris', 75.00, 24, 2, 8, 'Nike Air Max 901.png'),
+(5, 'Nike Air Max 90', 'Icono del streetwear', 'Gris', 75.00, 22, 2, 8, 'Nike Air Max 901.png'),
+(6, 'Nike Air Force 1', 'Clásico atemporal', 'Blanco', 60.00, 24, 2, 10, 'nike air force 1 blanco.png'),
+(7, 'Nike Air Force 1', 'Clásico atemporal', 'Blanco', 60.00, 17, 2, 10, 'nike air force 1 blanco.png'),
+(8, 'Puma Suede Classic', 'Estilo retro y comodidad', 'Rojo', 50.00, 15, 3, 4, 'Puma Suede Classic rojo.png'),
+(9, 'Puma Suede Classic', 'Estilo retro y comodidad', 'Negro', 50.00, 10, 3, 4, 'Puma Suede Classic negro.png'),
+(10, 'Reebok Club C 85', 'Estilo tenis vintage', 'Verde', 55.00, 18, 4, 6, 'Reebok Club C 85 verde.png'),
+(11, 'Reebok Club C 85', 'Estilo tenis vintage', 'Verde', 55.00, 14, 4, 6, 'Reebok Club C 85 verde.png'),
+(12, 'Adidas Stan Smith', 'Clásico de la cancha', 'Blanco/Verde', 65.00, -1, 1, 7, 'Adidas Stan Smith.png'),
+(13, 'Nike Cortez', 'Primeras zapatillas de running de Nike', 'Blanco/Rojo', 58.00, 15, 2, 5, 'Nike Cortez blanco rojo.png'),
+(14, 'Puma Future Rider', 'Inspiración retro-futurista', 'Amarillo', 40.00, 7, 3, 3, 'Puma Future Rider amarillo.png'),
+(15, 'Reebok Classic Nylon', 'Comodidad y durabilidad', 'Rosa', 38.00, 9, 4, 3, 'Reebok Classic Nylon.png'),
+(17, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 2, 3, 3, 'default_shoe.jpg'),
+(18, 'Nike Air Force 1', NULL, 'Blanco', 60.00, 6, 2, 10, 'default_shoe.jpg'),
+(19, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 2, 3, 3, 'default_shoe.jpg'),
+(20, 'Reebok Club C 85', NULL, 'Verde', 55.00, 4, 4, 6, 'default_shoe.jpg'),
+(21, 'Puma Future Rider', NULL, 'Amarillo', 40.00, 2, 3, 3, 'default_shoe.jpg'),
+(22, 'Nike Air Max 90', NULL, 'Gris', 75.00, 4, 2, 8, 'default_shoe.jpg');
 
 --
 -- Disparadores `productos`
 --
 DELIMITER $$
 CREATE TRIGGER `after_precio_update` AFTER UPDATE ON `productos` FOR EACH ROW BEGIN
-    IF OLD.precio_compra <> NEW.precio_compra OR OLD.precio_venta <> NEW.precio_venta THEN
-        INSERT INTO historial_precios (producto_id, precio_compra, precio_venta)
-        VALUES (NEW.id, NEW.precio_compra, NEW.precio_venta);
+    IF OLD.precio <> NEW.precio THEN
+        INSERT INTO historial_precios (producto_id, precio)
+        VALUES (NEW.id, NEW.precio);
     END IF;
 END
 $$
@@ -742,12 +712,6 @@ ALTER TABLE `historial_precios`
   ADD KEY `producto_id` (`producto_id`);
 
 --
--- Indices de la tabla `marcas`
---
-ALTER TABLE `marcas`
-  ADD PRIMARY KEY (`id`);
-
---
 -- Indices de la tabla `metodo_pago`
 --
 ALTER TABLE `metodo_pago`
@@ -773,8 +737,7 @@ ALTER TABLE `oportunidades_productos`
 --
 ALTER TABLE `productos`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `proveedor_id` (`proveedor_id`),
-  ADD KEY `marca_id` (`marca_id`);
+  ADD KEY `proveedor_id` (`proveedor_id`);
 
 --
 -- Indices de la tabla `proveedores`
@@ -871,12 +834,6 @@ ALTER TABLE `fotos_productos`
 --
 ALTER TABLE `historial_precios`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
-
---
--- AUTO_INCREMENT de la tabla `marcas`
---
-ALTER TABLE `marcas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT de la tabla `metodo_pago`
@@ -1004,8 +961,7 @@ ALTER TABLE `oportunidades_productos`
 -- Filtros para la tabla `productos`
 --
 ALTER TABLE `productos`
-  ADD CONSTRAINT `productos_ibfk_1` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`),
-  ADD CONSTRAINT `productos_ibfk_2` FOREIGN KEY (`marca_id`) REFERENCES `marcas` (`id`);
+  ADD CONSTRAINT `productos_ibfk_1` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`);
 
 --
 -- Filtros para la tabla `sincronizaciones`

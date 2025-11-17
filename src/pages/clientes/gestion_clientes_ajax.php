@@ -7,13 +7,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id']) && !isset($_POS
     $id = $_POST['id'];
     $nombre = $_POST['nombre'];
     $identificacion = $_POST['identificacion'];
-    $direccion = $_POST['direccion'];
+    $direccion = $_POST['direccion'] ?? '';
+    $telefono = !empty($_POST['telefono']) ? $_POST['telefono'] : null;
+    $email = !empty($_POST['email']) ? $_POST['email'] : null;
 
     try {
-        $stmt = $pdo->prepare("UPDATE clientes SET nombre=?, identificacion=?, direccion=? WHERE id=?");
-        $stmt->execute([$nombre, $identificacion, $direccion, $id]);
+        $stmt = $pdo->prepare("UPDATE clientes SET nombre=?, identificacion=?, direccion=?, telefono=?, email=? WHERE id=?");
+        $stmt->execute([$nombre, $identificacion, $direccion, $telefono, $email, $id]);
 
-        $stmt = $pdo->prepare("SELECT id, nombre, identificacion, direccion, creado_en FROM clientes WHERE id=?");
+        $stmt = $pdo->prepare("SELECT id, nombre, identificacion, direccion, telefono, email, creado_en FROM clientes WHERE id=?");
         $stmt->execute([$id]);
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
 

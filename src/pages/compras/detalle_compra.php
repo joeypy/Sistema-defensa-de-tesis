@@ -9,69 +9,45 @@ if (!isset($_GET['id'])) {
     exit();
 }
 
-$compra_id = $_GET['id'];
+$venta_id = $_GET['id'];
 
-// Obtener información de la compra
+// Obtener información de la venta
 $stmt = $pdo->prepare("
-    SELECT c.id, c.fecha, c.cliente_id, GROUP_CONCAT(DISTINCT m.nombre SEPARATOR ', ') AS marca, u.nombre AS usuario, c.total,
-           f.numero_factura, f.numero_control, f.fecha AS fecha_factura
-    FROM compras c
-    JOIN detalles_compra dc ON dc.compra_id = c.id
-    JOIN marcas m ON dc.marca_id = m.id
-    JOIN usuarios u ON c.usuario_id = u.id
-    LEFT JOIN facturas_compras f ON f.compra_id = c.id
-    WHERE c.id = ?
-    GROUP BY c.id, c.fecha, c.cliente_id, u.nombre, c.total, f.numero_factura, f.numero_control, f.fecha
+    SELECT v.id, v.fecha, v.cliente_id, v.total_dolares, v.total_bs,
+           v.numero_factura, v.numero_control, v.numero_referencia,
+           cl.nombre AS cliente_nombre,
+           mp.nombre AS metodo_pago_nombre
+    FROM ventas v
+    JOIN clientes cl ON v.cliente_id = cl.id
+    JOIN metodo_pago mp ON v.metodo_pago_id = mp.id
+    WHERE v.id = ?
 ");
-$stmt->execute([$compra_id]);
-$compra = $stmt->fetch(PDO::FETCH_ASSOC);
+$stmt->execute([$venta_id]);
+$venta = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Obtener información del cliente si existe
 $cliente = null;
-$cliente_emails = [];
-$cliente_telefonos = [];
 
-if ($compra && !empty($compra['cliente_id'])) {
-    $stmt_cliente = $pdo->prepare("SELECT id, nombre, identificacion, direccion, creado_en FROM clientes WHERE id = ?");
-    $stmt_cliente->execute([$compra['cliente_id']]);
+if ($venta && !empty($venta['cliente_id'])) {
+    $stmt_cliente = $pdo->prepare("SELECT id, nombre, identificacion, direccion, telefono, email, creado_en FROM clientes WHERE id = ?");
+    $stmt_cliente->execute([$venta['cliente_id']]);
     $cliente = $stmt_cliente->fetch(PDO::FETCH_ASSOC);
-    
-    if ($cliente) {
-        // Obtener emails del cliente
-        $stmt_emails = $pdo->prepare("SELECT email FROM clientes_emails WHERE cliente_id = ?");
-        $stmt_emails->execute([$cliente['id']]);
-        $cliente_emails = $stmt_emails->fetchAll(PDO::FETCH_COLUMN);
-        
-        // Obtener teléfonos del cliente
-        $stmt_telefonos = $pdo->prepare("SELECT telefono FROM clientes_telefonos WHERE cliente_id = ?");
-        $stmt_telefonos->execute([$cliente['id']]);
-        $cliente_telefonos = $stmt_telefonos->fetchAll(PDO::FETCH_COLUMN);
-    }
 }
 
-if (!$compra) {
+if (!$venta) {
     header("Location: " . PAGES_URL . "/compras/historial_compras.php");
     exit();
 }
 
-// Obtener detalles de la compra
+// Obtener detalles de la venta
 $detalles = $pdo->prepare("
-    SELECT pr.nombre, dc.cantidad, dc.precio_unitario, dc.subtotal
-    FROM detalles_compra dc
-    JOIN productos pr ON dc.producto_id = pr.id
-    WHERE dc.compra_id = ?
+    SELECT pr.nombre AS producto, dv.cantidad, dv.precio_unitario, dv.subtotal, dv.descuento
+    FROM detalles_venta dv
+    JOIN productos pr ON dv.producto_id = pr.id
+    WHERE dv.venta_id = ?
 ");
-$detalles->execute([$compra_id]);
+$detalles->execute([$venta_id]);
 $detalles = $detalles->fetchAll(PDO::FETCH_ASSOC);
-
-// Obtener método de pago
-$metodo_pago = $pdo->prepare("
-    SELECT metodo, numero_referencia
-    FROM metodo_pago
-    WHERE compra_id = ?
-");
-$metodo_pago->execute([$compra_id]);
-$metodo_pago = $metodo_pago->fetch(PDO::FETCH_ASSOC);
 
 include __DIR__ . '/../../includes/header.php';
 ?>
@@ -79,7 +55,7 @@ include __DIR__ . '/../../includes/header.php';
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-primary mb-0">
-            <i class="bi bi-receipt me-2"></i>Detalle de Compra <?= $compra['numero_factura'] ? 'N° ' . htmlspecialchars($compra['numero_factura']) : '# ' . $compra['id'] ?>
+            <i class="bi bi-receipt me-2"></i>Detalle de Venta <?= $venta['numero_factura'] ? 'N° ' . htmlspecialchars($venta['numero_factura']) : '# ' . $venta['id'] ?>
         </h2>
         <a href="historial_compras.php" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver al Historial
@@ -95,29 +71,21 @@ include __DIR__ . '/../../includes/header.php';
         </div>
         <div class="card-body">
             <div class="row mb-3">
-                <div class="col-md-3"><strong>N° Factura:</strong> <?= $compra['numero_factura'] ? htmlspecialchars($compra['numero_factura']) : 'Sin factura' ?></div>
-                <?php if ($compra['numero_control']): ?>
-                <div class="col-md-3"><strong>N° Control:</strong> <?= htmlspecialchars($compra['numero_control']) ?></div>
+                <div class="col-md-3"><strong>N° Factura:</strong> <?= $venta['numero_factura'] ? htmlspecialchars($venta['numero_factura']) : 'Sin factura' ?></div>
+                <?php if ($venta['numero_control']): ?>
+                <div class="col-md-3"><strong>N° Control:</strong> <?= htmlspecialchars($venta['numero_control']) ?></div>
                 <?php endif; ?>
-                <div class="col-md-3"><strong>Fecha:</strong> <?= date('d/m/Y H:i', strtotime($compra['fecha'])) ?></div>
-                <?php if ($compra['fecha_factura']): ?>
-                <div class="col-md-3"><strong>Fecha Factura:</strong> <?= date('d/m/Y', strtotime($compra['fecha_factura'])) ?></div>
-                <?php endif; ?>
+                <div class="col-md-3"><strong>Fecha:</strong> <?= date('d/m/Y H:i', strtotime($venta['fecha'])) ?></div>
+                <div class="col-md-3"><strong>Método de Pago:</strong> <?= htmlspecialchars($venta['metodo_pago_nombre']) ?></div>
             </div>
             <div class="row mb-3">
-                <div class="col-md-3"><strong>Marca/s:</strong> <?= htmlspecialchars($compra['marca']) ?></div>
-                <div class="col-md-3"><strong>Usuario:</strong> <?= htmlspecialchars($compra['usuario']) ?></div>
-                <div class="col-md-3"><strong>Total:</strong> $<?= number_format($compra['total'], 2) ?></div>
+                <div class="col-md-3"><strong>Cliente:</strong> <?= $venta['cliente_nombre'] ? htmlspecialchars($venta['cliente_nombre']) : 'Sin cliente' ?></div>
+                <div class="col-md-3"><strong>Total USD:</strong> $<?= number_format($venta['total_dolares'], 2) ?></div>
+                <div class="col-md-3"><strong>Total BS:</strong> <?= number_format($venta['total_bs'], 2) ?> BS</div>
+                <?php if ($venta['numero_referencia']): ?>
+                <div class="col-md-3"><strong>N° Referencia:</strong> <?= htmlspecialchars($venta['numero_referencia']) ?></div>
+                <?php endif; ?>
             </div>
-            <?php if ($metodo_pago): ?>
-            <div class="row mb-0">
-                <div class="col-md-6"><strong>Método de Pago:</strong> <?= htmlspecialchars($metodo_pago['metodo']) ?></div>
-                <div class="col-md-6">
-                    <strong>Número de Referencia:</strong> 
-                    <?= $metodo_pago['numero_referencia'] ? htmlspecialchars($metodo_pago['numero_referencia']) : 'N/A' ?>
-                </div>
-            </div>
-            <?php endif; ?>
         </div>
     </div>
 
@@ -142,24 +110,20 @@ include __DIR__ . '/../../includes/header.php';
                     <strong>Dirección:</strong> <?= htmlspecialchars($cliente['direccion']) ?>
                 </div>
                 <?php endif; ?>
-                <?php if (!empty($cliente_telefonos)): ?>
+                <?php if (!empty($cliente['telefono'])): ?>
                 <div class="col-md-6 mb-3">
-                    <strong>Teléfono(s):</strong>
-                    <ul class="list-unstyled mb-0 ms-3">
-                        <?php foreach ($cliente_telefonos as $telefono): ?>
-                            <li><i class="bi bi-telephone me-2"></i><?= htmlspecialchars($telefono) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <strong>Teléfono:</strong>
+                    <div class="ms-3">
+                        <i class="bi bi-telephone me-2"></i><?= htmlspecialchars($cliente['telefono']) ?>
+                    </div>
                 </div>
                 <?php endif; ?>
-                <?php if (!empty($cliente_emails)): ?>
+                <?php if (!empty($cliente['email'])): ?>
                 <div class="col-md-6 mb-3">
-                    <strong>Email(s):</strong>
-                    <ul class="list-unstyled mb-0 ms-3">
-                        <?php foreach ($cliente_emails as $email): ?>
-                            <li><i class="bi bi-envelope me-2"></i><?= htmlspecialchars($email) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <strong>Email:</strong>
+                    <div class="ms-3">
+                        <i class="bi bi-envelope me-2"></i><?= htmlspecialchars($cliente['email']) ?>
+                    </div>
                 </div>
                 <?php endif; ?>
                 <div class="col-md-12">
@@ -182,37 +146,49 @@ include __DIR__ . '/../../includes/header.php';
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Producto</th>
-                            <th>Cantidad</th>
-                            <th>Precio Unitario</th>
-                            <th>Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($detalles as $detalle): ?>
+                        <thead class="table-light">
                             <tr>
-                                <td><?= htmlspecialchars($detalle['nombre']) ?></td>
-                                <td><?= $detalle['cantidad'] ?></td>
-                                <td>$<?= number_format($detalle['precio_unitario'], 2) ?></td>
-                                <td>$<?= number_format($detalle['subtotal'], 2) ?></td>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unitario</th>
+                                <th>Descuento</th>
+                                <th>Subtotal</th>
                             </tr>
-                        <?php endforeach; ?>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($detalles as $detalle): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($detalle['producto']) ?></td>
+                                    <td><?= $detalle['cantidad'] ?></td>
+                                    <td>$<?= number_format($detalle['precio_unitario'], 2) ?></td>
+                                    <td class="text-center">
+                                        <?php if ($detalle['descuento'] == 1): ?>
+                                            <span class="badge bg-success">10%</span>
+                                        <?php else: ?>
+                                            <span class="text-muted">-</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>$<?= number_format($detalle['subtotal'], 2) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
                         <?php if (empty($detalles)): ?>
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-4">
+                                <td colspan="5" class="text-center text-muted py-4">
                                     <i class="bi bi-exclamation-circle me-2"></i>No hay productos en esta compra.
                                 </td>
                             </tr>
                         <?php endif; ?>
-                    </tbody>
-                    <tfoot class="table-light">
-                        <tr>
-                            <td colspan="3" class="text-end fw-bold">Total:</td>
-                            <td class="fw-bold">$<?= number_format($compra['total'], 2) ?></td>
-                        </tr>
-                    </tfoot>
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="4" class="text-end fw-bold">Total USD:</td>
+                                <td class="fw-bold">$<?= number_format($venta['total_dolares'], 2) ?></td>
+                            </tr>
+                            <tr>
+                                <td colspan="4" class="text-end fw-bold">Total BS:</td>
+                                <td class="fw-bold"><?= number_format($venta['total_bs'], 2) ?> BS</td>
+                            </tr>
+                        </tfoot>
                 </table>
             </div>
         </div>

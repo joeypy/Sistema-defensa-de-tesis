@@ -11,7 +11,8 @@ function verificarAutenticacion() {
 }
 
 function esAdmin() {
-    return (isset($_SESSION['usuario_rol']) && $_SESSION['usuario_rol'] === 'admin');
+    // Como solo hay un usuario en la aplicación, siempre es admin
+    return isset($_SESSION['usuario_id']);
 }
 
 // Opcional: Verificación adicional de seguridad
