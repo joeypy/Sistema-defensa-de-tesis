@@ -5,10 +5,26 @@ include __DIR__ . '/../../includes/auth.php';
 include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
-// Definir columnas permitidas para ordenar
+// Definir columnas permitidas para ordenar y su mapeo a columnas de la BD
 $allowedSort = ['id', 'fecha', 'cliente', 'numero_factura', 'total'];
+$sortMap = [
+    'id' => 'v.id',
+    'fecha' => 'v.fecha',
+    'cliente' => 'cl.nombre',
+    'numero_factura' => 'v.numero_factura',
+    'total' => 'v.total_dolares'
+];
+
+// Por defecto, ordenar por fecha DESC (más reciente primero)
 $sort = isset($_GET['sort']) && in_array($_GET['sort'], $allowedSort) ? $_GET['sort'] : 'fecha';
 $order = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'ASC' : 'DESC';
+// Si no se especifica orden y el sort es fecha, usar DESC por defecto
+if (!isset($_GET['order']) && $sort === 'fecha') {
+    $order = 'DESC';
+}
+
+// Obtener la columna real de la BD para el ordenamiento
+$sortColumn = $sortMap[$sort] ?? 'v.fecha';
 
 // Filtros de búsqueda
 $filtros = [];
@@ -54,12 +70,13 @@ $total = $totalRecords->fetch(PDO::FETCH_ASSOC)['total'];
 $totalPages = ceil($total / $limit);
 
 // Consulta con orden dinámico, filtros y paginación
+// Ordenar según los parámetros recibidos
 $sql = "
-    SELECT v.id, v.fecha, cl.nombre AS cliente, v.total_dolares, v.numero_factura
+    SELECT v.id, v.fecha, cl.nombre AS cliente, v.total_dolares, v.total_bs, v.numero_factura, v.numero_control
     FROM ventas v
     JOIN clientes cl ON v.cliente_id = cl.id
     $whereClause
-    ORDER BY $sort $order
+    ORDER BY $sortColumn $order
     LIMIT $limit OFFSET $offset
 ";
 
@@ -73,7 +90,7 @@ include __DIR__ . '/../../includes/header.php';
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-primary mb-0">
-            <i class="bi bi-clock-history me-2"></i>Historial de Compras
+            <i class="bi bi-clock-history me-2"></i>Historial de Ventas
         </h2>
     </div>
 
@@ -123,7 +140,7 @@ include __DIR__ . '/../../includes/header.php';
                         <button type="submit" class="btn btn-primary me-2">
                             <i class="bi bi-search me-1"></i>Buscar
                         </button>
-                        <a href="<?= PAGES_URL ?>/compras/historial_compras.php" class="btn btn-outline-secondary">
+                        <a href="<?= PAGES_URL ?>/ventas/historial_ventas.php" class="btn btn-outline-secondary">
                             <i class="bi bi-x-circle me-1"></i>Limpiar Filtros
                         </a>
                     </div>
@@ -164,6 +181,13 @@ include __DIR__ . '/../../includes/header.php';
                         </tr>
                     </thead>
                     <tbody>
+                        <?php if (empty($ventas)): ?>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">
+                                <i class="bi bi-exclamation-circle me-2"></i>No hay ventas registradas.
+                            </td>
+                        </tr>
+                        <?php else: ?>
                         <?php foreach ($ventas as $venta): ?>
                         <tr>
                             <td><?= date('d/m/Y', strtotime($venta['fecha'])) ?></td>
@@ -171,18 +195,12 @@ include __DIR__ . '/../../includes/header.php';
                             <td><?= htmlspecialchars($venta['numero_factura']) ?></td>
                             <td>$<?= number_format($venta['total_dolares'], 2, ',', '.') ?></td>
                             <td class="text-center">
-                                <a href="<?= PAGES_URL ?>/compras/detalle_compra.php?id=<?= $venta['id'] ?>" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Ver Detalle">
+                                <a href="<?= PAGES_URL ?>/ventas/detalle_compra.php?id=<?= $venta['id'] ?>" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Ver Detalle">
                                     <i class="bi bi-eye"></i> Ver Detalle
                                 </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                        <?php if (empty($ventas)): ?>
-                        <tr>
-                            <td colspan="5" class="text-center text-muted py-4">
-                                <i class="bi bi-exclamation-circle me-2"></i>No hay ventas registradas.
-                            </td>
-                        </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

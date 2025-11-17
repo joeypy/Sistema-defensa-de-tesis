@@ -109,31 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $metodo_pago_id = (int)($_POST['metodo_pago_id'] ?? 0);
         $numero_referencia = $_POST['numero_referencia'] ?? null;
         
-        // Obtener fecha de la factura del formulario
-        // IMPORTANTE: Usar exactamente la fecha que viene del formulario, sin modificaciones
-        if (empty($_POST['fecha_factura']) || !isset($_POST['fecha_factura'])) {
-            // Si no viene fecha, usar fecha actual del servidor
-            $fecha_factura = date('Y-m-d');
-        } else {
-            // Usar la fecha exacta que viene del formulario
-            $fecha_factura = trim($_POST['fecha_factura']);
-        }
-        
-        // Validar formato de fecha (debe ser YYYY-MM-DD)
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha_factura)) {
-            throw new Exception("Formato de fecha inválido. Formato esperado: YYYY-MM-DD");
-        }
-        
-        // Validar que la fecha no sea futura
-        $fecha_actual = date('Y-m-d');
-        if ($fecha_factura > $fecha_actual) {
-            throw new Exception("La fecha de la factura no puede ser futura.");
-        }
-        
-        // Convertir fecha a DATETIME (agregar hora actual del momento de registro)
-        // Usar la fecha exacta que viene del formulario, sin modificaciones
-        $hora_actual = date('H:i:s');
-        $fecha_factura_datetime = $fecha_factura . ' ' . $hora_actual;
+        // Obtener fecha de la factura (si no viene, usar fecha actual)
+        $fecha_factura = $_POST['fecha_factura'] ?? date('Y-m-d');
+        // Convertir fecha a DATETIME (agregar hora actual)
+        $fecha_factura_datetime = date('Y-m-d H:i:s', strtotime($fecha_factura . ' ' . date('H:i:s')));
 
         // Validar método de pago
         if (empty($metodo_pago_id) || $metodo_pago_id <= 0) {
@@ -291,7 +270,7 @@ include __DIR__ . '/../../includes/header.php';
                                     </div>
                                     <div class="col-md-3 mb-3">
                                         <label for="fecha_factura" class="form-label fw-semibold">Fecha de la factura:</label>
-                                        <input type="date" id="fecha_factura" name="fecha_factura" class="form-control border-0 shadow-sm" required>
+                                        <input type="date" id="fecha_factura" name="fecha_factura" class="form-control border-0 shadow-sm" value="<?= date('Y-m-d') ?>" required max="<?= date('Y-m-d') ?>">
                                     </div>
                                 </div>
                             </div>
@@ -691,32 +670,6 @@ document.addEventListener('DOMContentLoaded', function() {
         allowClear: true,
         width: '100%'
     });
-
-    // Establecer fecha actual en el input de fecha (usando fecha del cliente, no del servidor)
-    const fechaInput = document.getElementById('fecha_factura');
-    if (fechaInput) {
-        // Obtener fecha local del cliente usando métodos que respetan la zona horaria local
-        // Crear un objeto Date con la fecha/hora actual local
-        const now = new Date();
-        
-        // Obtener la fecha en la zona horaria local del cliente
-        // Usar toLocaleDateString con formato ISO para evitar problemas de zona horaria
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const fechaHoy = year + '-' + month + '-' + (day - 1) ;
-        
-        // Establecer el valor máximo ANTES de establecer el valor
-        // Esto evita que el navegador ajuste la fecha si el max es menor que el valor actual
-        fechaInput.max = fechaHoy;
-        
-        // Solo establecer el valor si no tiene uno ya (para no sobrescribir si el usuario ya seleccionó)
-        // Pero si el valor actual es mayor que el max, establecerlo a hoy
-        if (!fechaInput.value || fechaInput.value > fechaHoy) {
-            fechaInput.value = fechaHoy;
-        }
-        
-    }
 
     // Manejar el botón de registrar venta
     document.getElementById('btn-registrar-venta').addEventListener('click', function() {

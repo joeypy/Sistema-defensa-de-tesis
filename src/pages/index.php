@@ -77,7 +77,7 @@ include __DIR__ . '/../includes/header.php';
     <!-- Tarjetas de estadísticas -->
     <div class="row mb-4">
         <div class="col-md-3 mb-4">
-            <a href="<?= PAGES_URL ?>/compras/historial_compras.php" class="text-decoration-none">
+            <a href="<?= PAGES_URL ?>/ventas/historial_ventas.php" class="text-decoration-none">
                 <div class="stat-card card text-center h-100">
                     <div class="card-body py-4">
                         <div class="stat-card-icon"><i class="fas fa-cart-check"></i></div>
@@ -175,7 +175,7 @@ include __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
-                    <a href="<?= PAGES_URL ?>/compras/historial_compras.php" class="btn btn-link d-block text-center py-3 text-decoration-none">
+                    <a href="<?= PAGES_URL ?>/ventas/historial_ventas.php" class="btn btn-link d-block text-center py-3 text-decoration-none">
                         Ver todo el historial <i class="fas fa-arrow-right ms-1"></i>
                     </a>
                 </div>

@@ -40,7 +40,7 @@ try {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 5);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_USERAGENT, 'Sistema-Compras/1.0');
+        curl_setopt($ch, CURLOPT_USERAGENT, 'Sistema-ventas/1.0');
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         
         $response = curl_exec($ch);
@@ -67,7 +67,7 @@ try {
             'http' => [
                 'timeout' => 5,
                 'method' => 'GET',
-                'header' => 'User-Agent: Sistema-Compras/1.0'
+                'header' => 'User-Agent: Sistema-ventas/1.0'
             ]
         ]);
         

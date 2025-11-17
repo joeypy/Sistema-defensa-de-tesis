@@ -13,7 +13,7 @@ $productosBajoStockHeader = $pdo->query("
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Gestión de Compras</title>
+    <title>Sistema de Gestión de Ventas</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
@@ -44,7 +44,7 @@ $productosBajoStockHeader = $pdo->query("
         <nav class="navbar navbar-expand-lg navbar-light bg-white">
             <div class="container">
                 <a class="navbar-brand fw-bold text-primary" href="<?= PAGES_URL ?>/index.php">
-                    <i class="bi bi-box-seam me-2"></i>Sistema Compras
+                    <i class="bi bi-box-seam me-2"></i>Sistema Ventas
                 </a>
                 
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -59,12 +59,12 @@ $productosBajoStockHeader = $pdo->query("
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="<?= PAGES_URL ?>/compras/registrar_compra.php">
-                                <i class="bi bi-cart-plus me-1"></i>Nueva Compra
+                            <a class="nav-link" href="<?= PAGES_URL ?>/ventas/registrar_venta.php">
+                                <i class="bi bi-cart-plus me-1"></i>Nueva Venta
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="<?= PAGES_URL ?>/compras/historial_compras.php">
+                            <a class="nav-link" href="<?= PAGES_URL ?>/ventas/historial_ventas.php">
                                 <i class="bi bi-clock-history me-1"></i>Historial
                             </a>
                         </li>

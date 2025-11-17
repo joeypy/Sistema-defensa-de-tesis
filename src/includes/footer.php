@@ -3,7 +3,7 @@
     <footer class="footer mt-auto py-2" style="background: #000211ff; border-top: 0;">
     <div class="container text-center">
         <span class="fw-semibold" style="color: #fff; font-size: 0.95rem;">
-            Sistema de Compras -  &nbsp;|&nbsp; Solución profesional para gestión de compras  &nbsp;|&nbsp; © 2025 Todos los derechos reservados
+            Sistema de Ventas -  &nbsp;|&nbsp; Solución profesional para gestión de Ventas  &nbsp;|&nbsp; © 2025 Todos los derechos reservados
         </span>
     </div>
 </footer>

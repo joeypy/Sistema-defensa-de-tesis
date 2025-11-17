@@ -5,7 +5,7 @@ include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
 if (!isset($_GET['id'])) {
-    header("Location: " . PAGES_URL . "/compras/historial_compras.php");
+    header("Location: " . PAGES_URL . "/ventas/historial_ventas.php");
     exit();
 }
 
@@ -35,7 +35,7 @@ if ($venta && !empty($venta['cliente_id'])) {
 }
 
 if (!$venta) {
-    header("Location: " . PAGES_URL . "/compras/historial_compras.php");
+    header("Location: " . PAGES_URL . "/ventas/historial_ventas.php");
     exit();
 }
 
@@ -57,7 +57,7 @@ include __DIR__ . '/../../includes/header.php';
         <h2 class="fw-bold text-primary mb-0">
             <i class="bi bi-receipt me-2"></i>Detalle de Venta <?= $venta['numero_factura'] ? 'N° ' . htmlspecialchars($venta['numero_factura']) : '# ' . $venta['id'] ?>
         </h2>
-        <a href="historial_compras.php" class="btn btn-outline-secondary">
+        <a href="historial_ventas.php" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver al Historial
         </a>
     </div>

@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Sistema Compras</title>
+    <title>Login - Sistema Ventas</title>
     <link rel="stylesheet" href="/src/assets/css/main.css">
     <style>
         .login-container {
@@ -84,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
     <div class="login-container">
-        <h2>Sistema de Compras</h2>
+        <h2>Sistema de Ventas</h2>
         <?php if ($error): ?>
             <div class="error"><?= $error ?></div>
         <?php endif; ?>
