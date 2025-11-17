@@ -4,7 +4,7 @@
 
 // En Docker, las variables de entorno están disponibles
 $host = getenv('DB_HOST') ?: "db";
-$dbname = getenv('DB_NAME') ?: "sistema_compras_zapatos";
+$dbname = getenv('DB_NAME') ?: "sistema_admin";
 $user = getenv('DB_USER') ?: "root";
 $pass = getenv('DB_PASS') ?: "rootpassword";
 

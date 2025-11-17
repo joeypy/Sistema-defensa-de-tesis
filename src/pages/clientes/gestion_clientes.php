@@ -1,11 +1,11 @@
 <?php
-
+require_once __DIR__ . '/../../includes/config.php';
 include __DIR__ . '/../../includes/auth.php';
 include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
 // Obtener todos los clientes
-$clientes = $pdo->query("SELECT id, nombre, identificacion, direccion, creado_en FROM clientes ORDER BY creado_en DESC")->fetchAll(PDO::FETCH_ASSOC);
+$clientes = $pdo->query("SELECT id, nombre, identificacion, direccion, telefono, email, creado_en FROM clientes ORDER BY creado_en DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 include __DIR__ . '/../../includes/header.php';
 ?>
@@ -30,6 +30,7 @@ include __DIR__ . '/../../includes/header.php';
                             <th>Nombre</th>
                             <th>Identificación</th>
                             <th>Dirección</th>
+                            <th>Contacto</th>
                             <th>Creado En</th>
                             <th class="text-center">Acciones</th>
                         </tr>
@@ -40,8 +41,23 @@ include __DIR__ . '/../../includes/header.php';
                             <td><?= $cliente['id'] ?></td>
                             <td><?= htmlspecialchars($cliente['nombre']) ?></td>
                             <td><?= htmlspecialchars($cliente['identificacion']) ?></td>
-                            <td><?= htmlspecialchars($cliente['direccion']) ?></td>
-                            <td><?= htmlspecigitalchars($cliente['creado_en']) ?></td>
+                            <td><?= htmlspecialchars($cliente['direccion'] ?? '') ?></td>
+                            <td>
+                                <?php if (!empty($cliente['telefono'])): ?>
+                                    <div class="mb-1">
+                                        <i class="bi bi-telephone me-1"></i><?= htmlspecialchars($cliente['telefono']) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (!empty($cliente['email'])): ?>
+                                    <div>
+                                        <i class="bi bi-envelope me-1"></i><?= htmlspecialchars($cliente['email']) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <?php if (empty($cliente['telefono']) && empty($cliente['email'])): ?>
+                                    <span class="text-muted small">Sin contacto</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= date('d/m/Y H:i', strtotime($cliente['creado_en'])) ?></td>
                             <td class="text-center">
                                 <div class="btn-group acciones-btn-group" role="group">
                                     <button type="button" class="btn btn-sm btn-primary btn-editar" data-id="<?= $cliente['id'] ?>" title="Editar">
@@ -56,7 +72,7 @@ include __DIR__ . '/../../includes/header.php';
                         <?php endforeach; ?>
                         <?php if (empty($clientes)): ?>
                         <tr>
-                            <td colspan="6" class="text-center text-muted py-4">
+                            <td colspan="7" class="text-center text-muted py-4">
                                 <i class="bi bi-exclamation-circle me-2"></i>No hay clientes registrados.
                             </td>
                         </tr>
@@ -90,6 +106,14 @@ include __DIR__ . '/../../includes/header.php';
                     <label for="edit-direccion" class="form-label">Dirección</label>
                     <input type="text" class="form-control" name="direccion" id="edit-direccion">
                 </div>
+                <div class="mb-3">
+                    <label for="edit-telefono" class="form-label">Teléfono</label>
+                    <input type="text" class="form-control" name="telefono" id="edit-telefono" maxlength="20">
+                </div>
+                <div class="mb-3">
+                    <label for="edit-email" class="form-label">Email</label>
+                    <input type="email" class="form-control" name="email" id="edit-email" maxlength="255">
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -109,7 +133,9 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit-id').value = cliente.id;
             document.getElementById('edit-nombre').value = cliente.nombre;
             document.getElementById('edit-identificacion').value = cliente.identificacion;
-            document.getElementById('edit-direccion').value = cliente.direccion;
+            document.getElementById('edit-direccion').value = cliente.direccion || '';
+            document.getElementById('edit-telefono').value = cliente.telefono || '';
+            document.getElementById('edit-email').value = cliente.email || '';
 
             var modal = new bootstrap.Modal(document.getElementById('modalEditarCliente'));
             modal.show();
@@ -133,7 +159,30 @@ document.addEventListener('DOMContentLoaded', function() {
                 tr.setAttribute('data-cliente', JSON.stringify(res.cliente));
                 tr.children[1].textContent = res.cliente.nombre;
                 tr.children[2].textContent = res.cliente.identificacion;
-                tr.children[3].textContent = res.cliente.direccion;
+                tr.children[3].textContent = res.cliente.direccion || '';
+                // Actualizar columna de contacto (4)
+                let contactoHtml = '';
+                if (res.cliente.telefono) {
+                    contactoHtml += '<div class="mb-1"><i class="bi bi-telephone me-1"></i>' + res.cliente.telefono + '</div>';
+                }
+                if (res.cliente.email) {
+                    contactoHtml += '<div><i class="bi bi-envelope me-1"></i>' + res.cliente.email + '</div>';
+                }
+                if (!res.cliente.telefono && !res.cliente.email) {
+                    contactoHtml = '<span class="text-muted small">Sin contacto</span>';
+                }
+                tr.children[4].innerHTML = contactoHtml;
+                // Actualizar fecha de creación si existe
+                if (res.cliente.creado_en) {
+                    const fecha = new Date(res.cliente.creado_en);
+                    tr.children[5].textContent = fecha.toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                }
                 var modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarCliente'));
                 modal.hide();
             } else {

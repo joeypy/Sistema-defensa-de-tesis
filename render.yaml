@@ -37,9 +37,8 @@ databases:
   # o configurar MySQL en otro servicio
   - name: sistema-compras-db
     plan: free
-    databaseName: sistema_compras_zapatos
+    databaseName: sistema_admin
     user: app_user
     # Si Render soporta MySQL, descomenta:
     # databaseType: mysql
     # mysqlVersion: 8.0
-

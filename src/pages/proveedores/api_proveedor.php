@@ -44,7 +44,7 @@ class ApiProveedor {
             $productos[] = [
                 'codigo' => $item['sku'] ?? '',
                 'nombre' => $item['nombre'] ?? '',
-                'precio' => $item['precio_compra'] ?? 0,
+                'precio' => $item['precio'] ?? 0,
                 'color' => $item['color_principal'] ?? '',
                 'stock' => isset($item['disponible']) ? ($item['disponible'] ? 1 : 0) : 0
             ];

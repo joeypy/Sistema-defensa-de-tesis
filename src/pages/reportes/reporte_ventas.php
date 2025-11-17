@@ -4,44 +4,38 @@ include __DIR__ . '/../../includes/conexion.php';
 verificarAutenticacion();
 
 // Obtener parámetros de filtro
-$reporteSeleccionado = $_GET['reporte'] ?? 'resumen_compras';
+$reporteSeleccionado = $_GET['reporte'] ?? 'resumen_ventas';
 $fechaInicio = $_GET['fecha_inicio'] ?? '';
 $fechaFin = $_GET['fecha_fin'] ?? '';
 $clienteId = $_GET['cliente_id'] ?? '';
-$colorFiltro = $_GET['color_filtro'] ?? '';
 
 // Array para resultados
 $reportData = [];
 
 // Obtener listas para filtros
 $clientes = $pdo->query("SELECT id, nombre FROM clientes ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC);
-$colores = $pdo->query("SELECT DISTINCT color FROM productos WHERE color IS NOT NULL AND color != '' ORDER BY color")->fetchAll(PDO::FETCH_ASSOC);
 
 $params = [];
 $conditions = [];
 
 // Solo agregar estos filtros si el reporte lo permite
 $puedeFiltrarPorProducto = in_array($reporteSeleccionado, [
-    'resumen_compras',
-    'compras_cliente',  // Reporte añadido aquí
+    'resumen_ventas',
+    'ventas_cliente',
     'stock_inventario'
 ]);
 
 if (!empty($fechaInicio)) {
-    $conditions[] = "c.fecha >= :fecha_inicio";
+    $conditions[] = "v.fecha >= :fecha_inicio";
     $params[':fecha_inicio'] = $fechaInicio . ' 00:00:00';
 }
 if (!empty($fechaFin)) {
-    $conditions[] = "c.fecha <= :fecha_fin";
+    $conditions[] = "v.fecha <= :fecha_fin";
     $params[':fecha_fin'] = $fechaFin . ' 23:59:59';
 }
 if (!empty($clienteId)) {
-    $conditions[] = "dc.proveedor_id = :cliente_id";
+    $conditions[] = "v.cliente_id = :cliente_id";
     $params[':cliente_id'] = $clienteId;
-}
-if (!empty($colorFiltro) && $puedeFiltrarPorProducto) {
-    $conditions[] = "p.color = :color_filtro";
-    $params[':color_filtro'] = $colorFiltro;
 }
 
 // Convertir condiciones a cadena WHERE
@@ -49,57 +43,49 @@ $whereClause = empty($conditions) ? '' : 'WHERE ' . implode(' AND ', $conditions
 
 // Lógica para reportes
 switch ($reporteSeleccionado) {
-    case 'resumen_compras':
-        // Productos más comprados
-        $query = "SELECT p.id, p.nombre, SUM(dc.cantidad) as total_comprado, 
-                 SUM(dc.cantidad * dc.precio_unitario) as total_gastado,
-                 p.color
-                 FROM detalles_compra dc
-                 JOIN productos p ON dc.producto_id = p.id
-                 JOIN compras c ON dc.compra_id = c.id
+    case 'resumen_ventas':
+        // Productos más vendidos
+        $query = "SELECT p.id, p.nombre, SUM(dv.cantidad) as total_vendido, 
+                 SUM(dv.cantidad * dv.precio_unitario) as total_ingresado
+                 FROM detalles_venta dv
+                 JOIN productos p ON dv.producto_id = p.id
+                 JOIN ventas v ON dv.venta_id = v.id
                  $whereClause
                  GROUP BY p.id
-                 ORDER BY total_comprado DESC
+                 ORDER BY total_vendido DESC
                  LIMIT 10";
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
-        $reportData['productosMasComprados'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $reportData['productosMasVendidos'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         break;
 
-    case 'compras_cliente':
-        // Compras por cliente (CONSULTA MODIFICADA)
-        $query = "SELECT pr.id, pr.nombre as cliente, 
-                 COUNT(DISTINCT c.id) as total_compras, 
-                 SUM(dc.subtotal) as monto_total,
-                 SUM(dc.cantidad) as total_unidades
-                 FROM compras c
-                 JOIN detalles_compra dc ON dc.compra_id = c.id
-                 JOIN proveedores pr ON dc.proveedor_id = pr.id
-                 JOIN productos p ON dc.producto_id = p.id  
+    case 'ventas_cliente':
+        // Ventas por cliente
+        $query = "SELECT cl.id, cl.nombre as cliente, 
+                 COUNT(DISTINCT v.id) as total_ventas, 
+                 SUM(v.total_dolares) as monto_total,
+                 SUM(dv.cantidad) as total_unidades
+                 FROM ventas v
+                 JOIN clientes cl ON v.cliente_id = cl.id
+                 JOIN detalles_venta dv ON dv.venta_id = v.id
+                 JOIN productos p ON dv.producto_id = p.id  
                  $whereClause
-                 GROUP BY pr.id
+                 GROUP BY cl.id, cl.nombre
                  ORDER BY monto_total DESC";
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
-        $reportData['comprasPorCliente'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $reportData['ventasPorCliente'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         break;
 
     case 'stock_inventario':
         // Productos con stock bajo
         $stockParams = [];
-        $stockConditions = ["p.stock < p.stock_minimo"];
-        
-        if (!empty($clienteId)) {
-            $stockConditions[] = "p.proveedor_id = :cliente_id";
-            $stockParams[':cliente_id'] = $clienteId;
-        }
+        $stockConditions = ["p.stock <= 0"];
         
         $stockWhere = 'WHERE ' . implode(' AND ', $stockConditions);
         
-        $query = "SELECT p.id, p.nombre, p.stock, p.stock_minimo, 
-                 p.color, pr.nombre as cliente
+        $query = "SELECT p.id, p.nombre, p.stock
                  FROM productos p
-                 LEFT JOIN proveedores pr ON p.proveedor_id = pr.id
                  $stockWhere
                  ORDER BY p.stock ASC";
         
@@ -115,7 +101,7 @@ include __DIR__ . '/../../includes/header.php';
 ?>
 
 <div class="container-fluid py-4">
-    <h1 class="report-title">Reportes de Compras</h1>
+    <h1 class="report-title">Reportes de Ventas</h1>
 
     <!-- Filtros Avanzados -->
     <div class="filter-section mb-5">
@@ -125,8 +111,9 @@ include __DIR__ . '/../../includes/header.php';
             <div class="col-md-3">
                 <label for="reporte_selector" class="form-label fw-bold">Tipo de Reporte</label>
                 <select class="form-select border-primary" id="reporte_selector" name="reporte" onchange="this.form.submit()">
-                    <option value="resumen_compras" <?= $reporteSeleccionado == 'resumen_compras' ? 'selected' : '' ?>>Resumen de Compras</option>
-                    <option value="compras_cliente" <?= $reporteSeleccionado == 'compras_cliente' ? 'selected' : '' ?>>Compras por Marca</option>
+                    <option value="resumen_ventas" <?= $reporteSeleccionado == 'resumen_ventas' ? 'selected' : '' ?>>Resumen de Ventas</option>
+                    <option value="ventas_cliente" <?= $reporteSeleccionado == 'ventas_cliente' ? 'selected' : '' ?>>Ventas por Cliente</option>
+                    <option value="stock_inventario" <?= $reporteSeleccionado == 'stock_inventario' ? 'selected' : '' ?>>Stock de Inventario</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -150,17 +137,6 @@ include __DIR__ . '/../../includes/header.php';
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-1">
-                <label for="color_filtro" class="form-label fw-bold">Color</label>
-                <select class="form-select border-primary" id="color_filtro" name="color_filtro">
-                    <option value="">Todos</option>
-                    <?php foreach ($colores as $color): ?>
-                        <option value="<?= $color['color'] ?>" <?= $colorFiltro == $color['color'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($color['color']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
             <div class="col-md-12 text-end mt-2">
                 <center></center_><button type="submit" class="btn btn-primary btn-action">
                     <i class="fas fa-play me-2"></i> Generar
@@ -173,17 +149,17 @@ include __DIR__ . '/../../includes/header.php';
     <!-- Contenido del Reporte -->
     <div id="report-content">
         <?php if (isset($_GET['reporte'])): ?>
-            <?php if ($reporteSeleccionado == 'resumen_compras'): ?>
-                <!-- Resumen de Compras -->
+            <?php if ($reporteSeleccionado == 'resumen_ventas'): ?>
+                <!-- Resumen de Ventas -->
                 <div class="row">
                     <div class="col-lg-12 mb-4">
                         <div class="card">
                             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0 text-primary"><i class="fas fa-chart-pie mr-2"></i>Productos Más Comprados</h5>
+                                <h5 class="mb-0 text-primary"><i class="fas fa-chart-pie mr-2"></i>Productos Más Vendidos</h5>
                                 <span class="badge badge-primary badge-indicator">Top 10</span>
                             </div>
                             <div class="card-body">
-                                <?php if (empty($reportData['productosMasComprados'])): ?>
+                                <?php if (empty($reportData['productosMasVendidos'])): ?>
                                     <div class="no-data">
                                         <i class="fas fa-info-circle"></i>
                                         <h5>No hay datos para mostrar</h5>
@@ -195,18 +171,16 @@ include __DIR__ . '/../../includes/header.php';
                                             <thead>
                                                 <tr class="bg-light">
                                                     <th>Producto</th>
-                                                    <th class="text-right">Cantidad</th>
-                                                    <th class="text-right">Total Gastado</th>
-                                                    <th>Color</th>
+                                                    <th class="text-right">Cantidad Vendida</th>
+                                                    <th class="text-right">Total Ingresado</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <?php foreach ($reportData['productosMasComprados'] as $producto): ?>
+                                                <?php foreach ($reportData['productosMasVendidos'] as $producto): ?>
                                                     <tr>
                                                         <td><?= htmlspecialchars($producto['nombre']) ?></td>
-                                                        <td class="text-right"><?= number_format($producto['total_comprado'], 0) ?></td>
-                                                        <td class="text-right text-success font-weight-bold">$<?= number_format($producto['total_gastado'], 2) ?></td>
-                                                        <td><span class="badge" style="background-color: <?= $producto['color'] ?? '#6c757d' ?>; color: white"><?= $producto['color'] ?? 'N/A' ?></span></td>
+                                                        <td class="text-right"><?= number_format($producto['total_vendido'], 0) ?></td>
+                                                        <td class="text-right text-success font-weight-bold">$<?= number_format($producto['total_ingresado'], 2) ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -218,17 +192,17 @@ include __DIR__ . '/../../includes/header.php';
                     </div>
                 </div>
 
-            <?php elseif ($reporteSeleccionado == 'compras_cliente'): ?>
-                <!-- Compras por Cliente -->
+            <?php elseif ($reporteSeleccionado == 'ventas_cliente'): ?>
+                <!-- Ventas por Cliente -->
                 <div class="row">
                     <div class="col-lg-12 mb-4">
                         <div class="card">
                             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                                <h5 class="mb-0 text-primary"><i class="fas fa-truck mr-2"></i>Compras por Marca</h5>
+                                <h5 class="mb-0 text-primary"><i class="fas fa-users mr-2"></i>Ventas por Cliente</h5>
                                 <span class="badge badge-primary badge-indicator">Resumen</span>
                             </div>
                             <div class="card-body">
-                                <?php if (empty($reportData['comprasPorCliente'])): ?>
+                                <?php if (empty($reportData['ventasPorCliente'])): ?>
                                     <div class="no-data">
                                         <i class="fas fa-info-circle"></i>
                                         <h5>No hay datos para mostrar</h5>
@@ -243,16 +217,16 @@ include __DIR__ . '/../../includes/header.php';
                                             <thead>
                                                 <tr class="bg-light">
                                                     <th>Cliente</th>
-                                                    <th class="text-right">Total Compras</th>
+                                                    <th class="text-right">Total Ventas</th>
                                                     <th class="text-right">Unidades</th>
                                                     <th class="text-right">Monto Total</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <?php foreach ($reportData['comprasPorCliente'] as $cliente): ?>
+                                                <?php foreach ($reportData['ventasPorCliente'] as $cliente): ?>
                                                     <tr>
-                                                        <td><?= htmlspecialchars($cliente['cliente']) ?></td>
-                                                        <td class="text-right"><?= $cliente['total_compras'] ?></td>
+                                                        <td><?= htmlspecialchars($cliente['cliente'] ?? 'Sin cliente') ?></td>
+                                                        <td class="text-right"><?= $cliente['total_ventas'] ?></td>
                                                         <td class="text-right"><?= number_format($cliente['total_unidades'], 0) ?></td>
                                                         <td class="text-right text-success font-weight-bold">$<?= number_format($cliente['monto_total'], 2) ?></td>
                                                     </tr>
@@ -289,19 +263,13 @@ include __DIR__ . '/../../includes/header.php';
                                                 <tr class="bg-light">
                                                     <th>Producto</th>
                                                     <th class="text-right">Stock</th>
-                                                    <th class="text-right">Mínimo</th>
-                                                    <th>Color</th>
-                                                    <th>Cliente</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <?php foreach ($reportData['productosStockBajo'] as $producto): ?>
-                                                    <tr class="<?= $producto['stock'] <= ($producto['stock_minimo'] / 2) ? 'bg-danger-light' : 'bg-warning-light' ?>">
+                                                    <tr class="<?= $producto['stock'] <= 0 ? 'bg-danger-light' : 'bg-warning-light' ?>">
                                                         <td><?= htmlspecialchars($producto['nombre']) ?></td>
                                                         <td class="text-right font-weight-bold"><?= $producto['stock'] ?></td>
-                                                        <td class="text-right"><?= $producto['stock_minimo'] ?></td>
-                                                        <td><span class="badge" style="background-color: <?= $producto['color'] ?? '#6c757d' ?>; color: white"><?= $producto['color'] ?? 'N/A' ?></span></td>
-                                                        <td><?= $producto['cliente'] ?? 'N/A' ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
@@ -345,7 +313,7 @@ include __DIR__ . '/../../includes/header.php';
 function printReportContent() {
     var content = document.getElementById('report-content').innerHTML;
     var printWindow = window.open('', '', 'height=800,width=1000');
-    printWindow.document.write('<html><head><title>Reporte de Compras</title>');
+    printWindow.document.write('<html><head><title>Reporte de Ventas</title>');
     // Puedes agregar tus estilos aquí si quieres que se vea igual que en pantalla:
     printWindow.document.write('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">');
     printWindow.document.write('<style>body{font-family:Nunito,Arial,sans-serif;background:#fff;} .table{font-size:0.9rem;} .card{border:none;box-shadow:none;} .no-data{padding:2rem;text-align:center;color:#858796;} .badge{font-size:0.8rem;}</style>');
@@ -380,16 +348,16 @@ document.addEventListener('DOMContentLoaded', function() {
         return color;
     }
 
-    <?php if ($reporteSeleccionado == 'compras_cliente' && !empty($reportData['comprasPorCliente'])): ?>
-        // Gráfico de compras por cliente
+    <?php if ($reporteSeleccionado == 'ventas_cliente' && !empty($reportData['ventasPorCliente'])): ?>
+        // Gráfico de ventas por cliente
         const ctxCliente = document.getElementById('chartCliente').getContext('2d');
         new Chart(ctxCliente, {
             type: 'bar',
             data: {
-                labels: <?= json_encode(array_column($reportData['comprasPorCliente'], 'cliente')) ?>,
+                labels: <?= json_encode(array_column($reportData['ventasPorCliente'], 'cliente')) ?>,
                 datasets: [{
                     label: 'Monto Total ($)',
-                    data: <?= json_encode(array_column($reportData['comprasPorCliente'], 'monto_total')) ?>,
+                    data: <?= json_encode(array_column($reportData['ventasPorCliente'], 'monto_total')) ?>,
                     backgroundColor: '#4e73df',
                     borderWidth: 1,
                     borderRadius: 4,
@@ -439,7 +407,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function exportToPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'pt', 'a4');
-    const title = "Reporte de Compras - <?= date('d/m/Y') ?>";
+    const title = "Reporte de Ventas - <?= date('d/m/Y') ?>";
     const filters = [];
     
     <?php if (!empty($fechaInicio) || !empty($fechaFin)): ?>
@@ -488,7 +456,7 @@ function exportToPDF() {
             heightLeft -= pageHeight;
         }
         
-        doc.save(`Reporte_Compras_<?= date('YmdHis') ?>.pdf`);
+        doc.save(`Reporte_Ventas_<?= date('YmdHis') ?>.pdf`);
     });
 }
 

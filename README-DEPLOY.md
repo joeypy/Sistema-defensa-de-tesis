@@ -5,14 +5,17 @@
 Render **no soporta MySQL nativamente** en su plan gratuito. Tienes dos opciones:
 
 ### Opción A: Usar PostgreSQL (Requiere cambios en el código)
+
 - Render ofrece PostgreSQL gratis
 - Necesitarías adaptar las consultas SQL a PostgreSQL
 
 ### Opción B: Usar MySQL Externo (Recomendado)
+
 - Usar un servicio MySQL externo (como [PlanetScale](https://planetscale.com), [Aiven](https://aiven.io), o [Railway](https://railway.app))
 - Configurar las variables de entorno en Render apuntando a ese servicio
 
 ### Opción C: Usar Railway o Fly.io
+
 - Estos servicios soportan MySQL nativamente
 - Puedes usar docker-compose directamente
 
@@ -21,6 +24,7 @@ Render **no soporta MySQL nativamente** en su plan gratuito. Tienes dos opciones
 ### 1. Preparar el Repositorio
 
 Asegúrate de tener estos archivos:
+
 - ✅ `Dockerfile`
 - ✅ `database/01-schema.sql`
 - ✅ `database/02-data.sql`
@@ -29,6 +33,7 @@ Asegúrate de tener estos archivos:
 ### 2. Crear Base de Datos MySQL Externa
 
 Usa un servicio como:
+
 - **PlanetScale**: https://planetscale.com (MySQL gratuito)
 - **Aiven**: https://aiven.io (MySQL con plan gratuito)
 - **Railway**: https://railway.app (MySQL con plan gratuito)
@@ -51,7 +56,7 @@ En el servicio web, agrega estas variables:
 
 ```
 DB_HOST=<tu-host-mysql-externo>
-DB_NAME=sistema_compras_zapatos
+DB_NAME=sistema_admin
 DB_USER=<tu-usuario-mysql>
 DB_PASS=<tu-contraseña-mysql>
 PHP_ENV=production
@@ -62,6 +67,7 @@ PHP_ENV=production
 Después del despliegue, ejecuta los scripts SQL:
 
 **Opción 1: Desde tu máquina local**
+
 ```bash
 mysql -h <host> -u <user> -p <database> < database/init.sql
 mysql -h <host> -u <user> -p <database> < database/01-schema.sql
@@ -69,9 +75,11 @@ mysql -h <host> -u <user> -p <database> < database/02-data.sql
 ```
 
 **Opción 2: Desde Render Shell**
+
 1. Ve a tu servicio web en Render
 2. Click en "Shell"
 3. Ejecuta:
+
 ```bash
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/init.sql
 mysql -h $DB_HOST -u $DB_USER -p$DB_PASS $DB_NAME < database/01-schema.sql
@@ -101,6 +109,7 @@ Railway soporta MySQL nativamente y docker-compose:
 ## 🔐 Seguridad
 
 **IMPORTANTE**: Después del despliegue:
+
 1. Cambia la contraseña del usuario `admin`
 2. Usa variables de entorno para credenciales sensibles
 3. Habilita HTTPS (Render lo hace automáticamente)
@@ -111,4 +120,3 @@ Railway soporta MySQL nativamente y docker-compose:
 - [Documentación de Render](https://render.com/docs)
 - [PlanetScale (MySQL gratuito)](https://planetscale.com)
 - [Railway (soporta MySQL)](https://railway.app)
-

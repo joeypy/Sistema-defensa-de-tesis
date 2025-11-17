@@ -10,13 +10,15 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     try {
         $stmt = $pdo->prepare("
-            INSERT INTO clientes (nombre, identificacion, direccion)
-            VALUES (?, ?, ?)
+            INSERT INTO clientes (nombre, identificacion, direccion, telefono, email)
+            VALUES (?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $_POST['nombre'],
             $_POST['identificacion'],
-            $_POST['direccion']
+            $_POST['direccion'] ?? '',
+            !empty($_POST['telefono']) ? $_POST['telefono'] : null,
+            !empty($_POST['email']) ? $_POST['email'] : null
         ]);
         $mensaje = 'Cliente creado exitosamente!';
     } catch (PDOException $e) {
@@ -60,6 +62,16 @@ include __DIR__ . '/../../includes/header.php';
                 <div class="mb-3">
                     <label for="direccion" class="form-label">Dirección:</label>
                     <textarea id="direccion" name="direccion" class="form-control" rows="2" maxlength="255"></textarea>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3">
+                        <label for="telefono" class="form-label">Teléfono:</label>
+                        <input type="text" id="telefono" name="telefono" class="form-control" maxlength="20">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="email" class="form-label">Email:</label>
+                        <input type="email" id="email" name="email" class="form-control" maxlength="255">
+                    </div>
                 </div>
                 <div class="text-end">
                     <button type="submit" class="btn btn-success">

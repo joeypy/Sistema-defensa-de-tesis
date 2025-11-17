@@ -27,7 +27,7 @@ foreach ($proveedores as $proveedor) {
                 // Actualizar producto existente
                 $stmt = $pdo->prepare("
                     UPDATE productos 
-                    SET precio_compra = ?, stock = stock + ?
+                    SET precio = ?, stock = stock + ?
                     WHERE id = ?
                 ");
                 $stmt->execute([
@@ -39,7 +39,7 @@ foreach ($proveedores as $proveedor) {
                 // Crear nuevo producto
                 $stmt = $pdo->prepare("
                     INSERT INTO productos 
-                    (nombre, precio_compra, color, stock, proveedor_id, codigo_externo)
+                    (nombre, precio, color, stock, proveedor_id, codigo_externo)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ");
                 $stmt->execute([

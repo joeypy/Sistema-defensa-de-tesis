@@ -6,21 +6,13 @@ include __DIR__ . '/../../includes/conexion.php';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id']) && !isset($_POST['eliminar'])) {
     $id = $_POST['id'];
     $nombre = $_POST['nombre'];
-    $precio_compra = $_POST['precio_compra'];
+    $precio = $_POST['precio'];
     $stock = (int)$_POST['stock'];
-    $stock_minimo = (int)$_POST['stock_minimo'];
-    $proveedor_id = $_POST['proveedor_id'];
 
     try {
         // Validar que el stock no sea negativo
         if ($stock < 0) {
             echo json_encode(['success' => false, 'error' => 'El stock no puede ser negativo. El valor mínimo permitido es 0.']);
-            exit;
-        }
-        
-        // Validar que el stock_minimo no sea negativo
-        if ($stock_minimo < 0) {
-            echo json_encode(['success' => false, 'error' => 'El stock mínimo no puede ser negativo. El valor mínimo permitido es 0.']);
             exit;
         }
         
@@ -50,22 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id']) && !isset($_POS
             }
         }
         
-        $stmt = $pdo->prepare("UPDATE productos SET nombre=?, precio_compra=?, stock=?, stock_minimo=?, proveedor_id=? WHERE id=?");
-        $stmt->execute([$nombre, $precio_compra, $stock, $stock_minimo, $proveedor_id, $id]);
-
-        $stmtProv = $pdo->prepare("SELECT nombre FROM proveedores WHERE id=?");
-        $stmtProv->execute([$proveedor_id]);
-        $proveedor_nombre = $stmtProv->fetchColumn();
+        $stmt = $pdo->prepare("UPDATE productos SET nombre=?, precio=?, stock=? WHERE id=?");
+        $stmt->execute([$nombre, $precio, $stock, $id]);
 
         echo json_encode([
             'success' => true,
             'producto' => [
                 'id' => $id,
                 'nombre' => $nombre,
-                'precio_compra' => $precio_compra,
-                'stock' => $stock,
-                'stock_minimo' => $stock_minimo,
-                'proveedor_nombre' => $proveedor_nombre
+                'precio' => $precio,
+                'stock' => $stock
             ]
         ]);
     } catch (Exception $e) {
@@ -93,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar']) && isset(
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar']) && isset($_POST['id'])) {
     $id = $_POST['id'];
     try {
-        // Eliminar detalles de compra relacionados
-        $stmt = $pdo->prepare("DELETE FROM detalles_compra WHERE producto_id=?");
+        // Eliminar detalles de venta relacionados
+        $stmt = $pdo->prepare("DELETE FROM detalles_venta WHERE producto_id=?");
         $stmt->execute([$id]);
 
         // Eliminar producto

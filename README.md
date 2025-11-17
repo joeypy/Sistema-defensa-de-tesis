@@ -112,7 +112,7 @@ docker-compose build
 docker-compose ps
 
 # Acceder al contenedor de la base de datos
-docker-compose exec db mysql -u root -prootpassword sistema_compras_zapatos
+docker-compose exec db mysql -u root -prootpassword sistema_admin
 
 # Acceder al contenedor web
 docker-compose exec web bash
@@ -154,7 +154,7 @@ docker-compose logs db
 
 **Base de datos:**
 
-- Nombre: `sistema_compras_zapatos`
+- Nombre: `sistema_admin`
 - Usuario: `root`
 - Contraseña: `rootpassword`
 
@@ -166,15 +166,144 @@ docker-compose logs db
 ├── includes/        # Archivos PHP compartidos (auth, conexion, header, footer)
 ├── src/            # Módulos de la aplicación
 │   ├── clientes/
-│   ├── compras/
+│   ├── ventas/     # Gestión de ventas (antes compras/)
 │   ├── productos/
-│   ├── proveedores/
 │   ├── reportes/
 │   └── tasa/
 ├── database/       # Scripts SQL de la base de datos
 ├── Dockerfile      # Configuración de la imagen PHP
 └── docker-compose.yml  # Configuración de servicios Docker
 ```
+
+## 🗄️ Estructura de la Base de Datos
+
+### Tablas Principales
+
+El sistema utiliza una estructura simplificada enfocada en **ventas** (no compras):
+
+1. **`usuarios`** - Autenticación y gestión de usuarios ✅
+2. **`clientes`** - Información de clientes ✅
+3. **`productos`** - Catálogo de productos
+4. **`ventas`** - Registro de ventas
+5. **`detalles_venta`** - Detalles de productos en cada venta
+6. **`metodo_pago`** - Métodos de pago disponibles
+7. **`tasa_diaria`** - Tasa de cambio USD/VES
+
+### Diagrama de Relaciones (Mermaid)
+
+```mermaid
+erDiagram
+    usuarios ||--o{ ventas : "registra"
+    clientes ||--o{ ventas : "compra"
+    productos ||--o{ detalles_venta : "incluye"
+    ventas ||--o{ detalles_venta : "contiene"
+    metodo_pago ||--o{ ventas : "usa"
+
+    usuarios {
+        int id PK
+        varchar username UK
+        varchar password
+        varchar nombre
+        varchar email
+        varchar direccion
+        varchar telefono
+    }
+
+    clientes {
+        int id PK
+        varchar nombre
+        varchar identificacion UK
+        text direccion
+        varchar telefono
+        varchar email
+        timestamp creado_en
+    }
+
+    productos {
+        int id PK
+        varchar nombre
+        varchar descripcion
+        decimal precio
+        int stock
+    }
+
+    metodo_pago {
+        int id PK
+        varchar nombre UK
+        tinyint requiere_referencia
+    }
+
+    ventas {
+        int id PK
+        int cliente_id FK
+        datetime fecha
+        decimal total_dolares
+        decimal total_bs
+        varchar numero_factura
+        varchar numero_control
+        int metodo_pago_id FK
+        varchar numero_referencia
+    }
+
+    detalles_venta {
+        int id PK
+        int venta_id FK
+        int producto_id FK
+        int cantidad
+        decimal precio_unitario
+        decimal subtotal
+        tinyint descuento
+    }
+
+    tasa_diaria {
+        int id PK
+        date fecha UK
+        decimal tasa
+        varchar descripcion
+    }
+```
+
+### Descripción de Tablas
+
+#### `usuarios`
+
+- Almacena información de usuarios del sistema
+- Usado para autenticación y registro de quién realiza las ventas
+
+#### `clientes`
+
+- Información de clientes que realizan compras
+- Contacto unificado (teléfono y email en la misma tabla)
+
+#### `productos`
+
+- Catálogo de productos disponibles
+- Precio unificado (no hay precio de compra/venta separados)
+- Stock que se descuenta automáticamente al vender
+
+#### `ventas`
+
+- Registro principal de cada venta
+- Incluye información fiscal (número de factura y control)
+- Almacena totales en USD y BS
+- Relación con método de pago
+
+#### `detalles_venta`
+
+- Productos incluidos en cada venta
+- Permite múltiples productos por venta
+- Registra si se aplicó descuento del 10%
+- **Trigger automático:** Descuenta stock al insertar
+
+#### `metodo_pago`
+
+- Catálogo de métodos de pago disponibles
+- Indica si requiere número de referencia
+
+#### `tasa_diaria`
+
+- Tasa de cambio USD/VES por día
+- Usada para calcular totales en BS
 
 ## 🛠️ Desarrollo Local (sin Docker)
 
@@ -188,8 +317,8 @@ docker-compose logs db
 
 1. **Configurar la base de datos**
 
-   - Crear una base de datos llamada `sistema_compras_zapatos`
-   - Importar el script SQL desde `database/sistema_compras_zapatos (18).sql`
+   - Crear una base de datos llamada `sistema_admin`
+   - Importar el script SQL desde `database/sistema_admin (18).sql`
 
 2. **Configurar la conexión**
 
@@ -247,7 +376,7 @@ En la sección **"Environment"** del servicio web, agrega estas variables:
 
 ```
 DB_HOST=<host-de-tu-mysql-externo>
-DB_NAME=sistema_compras_zapatos
+DB_NAME=sistema_admin
 DB_USER=<usuario-de-tu-mysql>
 DB_PASS=<contraseña-de-tu-mysql>
 PHP_ENV=production
@@ -257,7 +386,7 @@ PHP_ENV=production
 
 ```
 DB_HOST=aws.connect.psdb.cloud
-DB_NAME=sistema_compras_zapatos
+DB_NAME=sistema_admin
 DB_USER=tu_usuario
 DB_PASS=tu_contraseña
 PHP_ENV=production

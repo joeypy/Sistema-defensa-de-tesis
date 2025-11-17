@@ -3,6 +3,10 @@
 if (!defined('BASE_URL')) {
     require_once __DIR__ . '/../../includes/config.php';
 }
+if (!isset($metodos_pago)) {
+    require_once __DIR__ . '/../../includes/conexion.php';
+    $metodos_pago = $pdo->query("SELECT id, nombre, requiere_referencia FROM metodo_pago ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 <div class="modal fade" id="modalMetodoPago" tabindex="-1" aria-labelledby="modalMetodoPagoLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -13,17 +17,19 @@ if (!defined('BASE_URL')) {
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label for="metodo_pago" class="form-label">Método de Pago:</label>
-                    <select id="metodo_pago" class="form-select" required>
+                    <label for="metodo_pago_id" class="form-label">Método de Pago:</label>
+                    <select id="metodo_pago_id" class="form-select select2-metodo-pago" required>
                         <option value="">Seleccione un método</option>
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Pago Móvil">Pago Móvil</option>
-                        <option value="Punto de Venta">Punto de Venta</option>
+                        <?php foreach ($metodos_pago as $metodo): ?>
+                            <option value="<?= $metodo['id'] ?>" data-requiere-referencia="<?= $metodo['requiere_referencia'] ?>">
+                                <?= htmlspecialchars($metodo['nombre']) ?>
+                            </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="mb-3" id="numero_referencia_container" style="display: none;">
                     <label for="numero_referencia" class="form-label">Número de Referencia:</label>
-                    <input type="text" id="numero_referencia" class="form-control" pattern="[0-9]{4}" maxlength="4" placeholder="4 dígitos">
+                    <input type="text" id="numero_referencia" class="form-control" pattern="[0-9]{4,50}" maxlength="50" placeholder="Ingrese el número de referencia">
                 </div>
             </div>
             <div class="modal-footer">

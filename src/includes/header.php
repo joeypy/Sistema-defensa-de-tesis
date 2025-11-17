@@ -5,7 +5,7 @@ if (!defined('BASE_URL')) {
 $productosBajoStockHeader = $pdo->query("
     SELECT COUNT(*) as total 
     FROM productos
-    WHERE stock <= stock_minimo
+    WHERE stock <= 0
 ")->fetch(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>

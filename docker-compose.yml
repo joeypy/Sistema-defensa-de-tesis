@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   web:
@@ -12,7 +12,7 @@ services:
       - db
     environment:
       - DB_HOST=db
-      - DB_NAME=sistema_compras_zapatos
+      - DB_NAME=sistema_admin
       - DB_USER=root
       - DB_PASS=rootpassword
     networks:
@@ -25,7 +25,7 @@ services:
       - "3306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=sistema_compras_zapatos
+      - MYSQL_DATABASE=sistema_admin
       - MYSQL_USER=app_user
       - MYSQL_PASSWORD=app_password
     volumes:
@@ -55,4 +55,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-

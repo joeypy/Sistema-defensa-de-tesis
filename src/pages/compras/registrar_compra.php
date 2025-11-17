@@ -23,7 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         // Validar y convertir cliente_id a entero
-        // Manejar tanto valores vacíos como cadenas vacías
         $cliente_id_raw = $_POST['cliente_id'] ?? '';
         $cliente_id = (trim($cliente_id_raw) !== '' && is_numeric($cliente_id_raw)) ? (int)$cliente_id_raw : null;
         
@@ -36,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Error de sesión. Por favor, inicie sesión nuevamente.");
         }
         
-        $marcas_ids = $_POST['marca_id'] ?? [];
         $productos_ids = $_POST['producto_id'] ?? [];
         $cantidades = $_POST['cantidad'] ?? [];
         $descuentos = $_POST['descuento'] ?? [];
@@ -46,20 +44,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Debe agregar al menos un producto a la compra.");
         }
 
-        $total = 0;
+        // Obtener tasa del día para calcular total_bs
+        $tasa_info = $pdo->query("SELECT tasa FROM tasa_diaria ORDER BY fecha DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        $tasa_actual = $tasa_info['tasa'] ?? 1;
+        
+        $total_dolares = 0;
         $detalles = [];
 
         for ($i = 0; $i < count($productos_ids); $i++) {
             // Validar y convertir IDs a enteros
-            $marca_id = !empty($marcas_ids[$i]) ? (int)$marcas_ids[$i] : null;
             $producto_id = !empty($productos_ids[$i]) ? (int)$productos_ids[$i] : null;
             $cantidad = !empty($cantidades[$i]) ? (int)$cantidades[$i] : 0;
             $descuento = $descuentos[$i] ?? '0';
             
-            // Validar que los IDs sean válidos
-            if (empty($marca_id) || $marca_id <= 0) {
-                throw new Exception("Debe seleccionar una marca válida para el producto en la fila " . ($i + 1) . ".");
-            }
+            // Validar que el ID sea válido
             if (empty($producto_id) || $producto_id <= 0) {
                 throw new Exception("Debe seleccionar un producto válido en la fila " . ($i + 1) . ".");
             }
@@ -70,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Obtener precio y stock del producto
-            $stmt = $pdo->prepare("SELECT precio_compra, stock, nombre FROM productos WHERE id = ?");
+            $stmt = $pdo->prepare("SELECT precio, stock, nombre FROM productos WHERE id = ?");
             $stmt->execute([$producto_id]);
             $producto = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -78,62 +76,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("Producto con ID $producto_id no encontrado.");
             }
 
-            $precio_unitario = $producto['precio_compra'];
+            $precio_unitario = $producto['precio'];
             $stock_actual = (int)$producto['stock'];
             $nombre_producto = $producto['nombre'];
-            
-            // Validar que el stock resultante no sea negativo
-            // En compras, el stock aumenta, pero validamos que la cantidad sea válida
-            if ($cantidad < 0) {
-                throw new Exception("La cantidad no puede ser negativa para el producto: $nombre_producto");
+
+            // Validar stock disponible
+            if ($stock_actual < $cantidad) {
+                throw new Exception("Stock insuficiente para el producto '$nombre_producto'. Stock disponible: $stock_actual, solicitado: $cantidad");
             }
 
             $subtotal = $precio_unitario * $cantidad;
             if ($descuento == "1") {
                 $subtotal *= 0.9; // Aplicar descuento del 10%
             }
-            $total += $subtotal;
+            $total_dolares += $subtotal;
 
             $detalles[] = [
-                'marca_id' => $marca_id,
                 'producto_id' => $producto_id,
                 'cantidad' => $cantidad,
                 'precio_unitario' => $precio_unitario,
-                'subtotal' => $subtotal
+                'subtotal' => $subtotal,
+                'descuento' => ($descuento == "1") ? 1 : 0
             ];
         }
 
-        $stmt = $pdo->prepare("INSERT INTO compras (cliente_id, usuario_id, total) VALUES (?, ?, ?)");
-        $stmt->execute([$cliente_id, $usuario_id, $total]);
-        $compra_id = $pdo->lastInsertId();
+        // Calcular total en BS
+        $total_bs = $total_dolares * $tasa_actual;
 
+        // Obtener datos de factura y método de pago
         $numero_factura = $_POST['numero_factura'];
         $numero_control = $_POST['numero_control'];
-        $fecha_factura = $_POST['fecha_factura'];
+        $metodo_pago_id = (int)($_POST['metodo_pago_id'] ?? 0);
+        $numero_referencia = $_POST['numero_referencia'] ?? null;
 
-        $stmt = $pdo->prepare("INSERT INTO facturas_compras (compra_id, numero_factura, numero_control, fecha) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$compra_id, $numero_factura, $numero_control, $fecha_factura]);
-
-        foreach ($detalles as $detalle) {
-            $stmt = $pdo->prepare("INSERT INTO detalles_compra (compra_id, marca_id, producto_id, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$compra_id, $detalle['marca_id'], $detalle['producto_id'], $detalle['cantidad'], $detalle['precio_unitario'], $detalle['subtotal']]);
-
-            $stmt = $pdo->prepare("UPDATE productos SET stock = stock + ? WHERE id = ?");
-            $stmt->execute([$detalle['cantidad'], $detalle['producto_id']]);
+        // Validar método de pago
+        if (empty($metodo_pago_id) || $metodo_pago_id <= 0) {
+            throw new Exception("Debe seleccionar un método de pago válido.");
         }
 
-        // Insertar método de pago si se proporcionó
-        if (isset($_POST['metodo_pago'])) {
-            $metodo = $_POST['metodo_pago'];
-            $numero_referencia = ($metodo === 'Efectivo') ? null : ($_POST['numero_referencia'] ?? null);
-            
-            // Validar que si no es Efectivo, debe tener número de referencia
-            if ($metodo !== 'Efectivo' && empty($numero_referencia)) {
-                throw new Exception("El número de referencia es obligatorio para el método de pago: $metodo");
-            }
-            
-            $stmt = $pdo->prepare("INSERT INTO metodo_pago (compra_id, metodo, numero_referencia) VALUES (?, ?, ?)");
-            $stmt->execute([$compra_id, $metodo, $numero_referencia]);
+        // Verificar si el método requiere referencia
+        $stmt = $pdo->prepare("SELECT nombre, requiere_referencia FROM metodo_pago WHERE id = ?");
+        $stmt->execute([$metodo_pago_id]);
+        $metodo_pago = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$metodo_pago) {
+            throw new Exception("Método de pago no encontrado.");
+        }
+
+        // Validar número de referencia si es requerido
+        if ($metodo_pago['requiere_referencia'] == 1 && empty($numero_referencia)) {
+            throw new Exception("El número de referencia es obligatorio para el método de pago: " . $metodo_pago['nombre']);
+        }
+
+        // Si es Efectivo, no requiere referencia
+        if ($metodo_pago['requiere_referencia'] == 0) {
+            $numero_referencia = null;
+        }
+
+        // Insertar venta con todos los datos
+        $stmt = $pdo->prepare("INSERT INTO ventas (cliente_id, total_dolares, total_bs, numero_factura, numero_control, metodo_pago_id, numero_referencia) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$cliente_id, $total_dolares, $total_bs, $numero_factura, $numero_control, $metodo_pago_id, $numero_referencia]);
+        $venta_id = $pdo->lastInsertId();
+
+        // Insertar detalles de venta (el trigger descontará el stock automáticamente)
+        foreach ($detalles as $detalle) {
+            $stmt = $pdo->prepare("INSERT INTO detalles_venta (venta_id, producto_id, cantidad, precio_unitario, subtotal, descuento) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$venta_id, $detalle['producto_id'], $detalle['cantidad'], $detalle['precio_unitario'], $detalle['subtotal'], $detalle['descuento']]);
         }
 
         $pdo->commit();
@@ -146,11 +154,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$marcas = $pdo->query("SELECT id, nombre FROM marcas")->fetchAll(PDO::FETCH_ASSOC);
+$productos_todos = $pdo->query("SELECT id, nombre, precio FROM productos ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
 $clientes = $pdo->query("SELECT id, nombre FROM clientes")->fetchAll(PDO::FETCH_ASSOC);
 
 // Obtener el siguiente número de control
-$ultimo_control = $pdo->query("SELECT numero_control FROM facturas_compras ORDER BY id DESC LIMIT 1")->fetchColumn();
+$ultimo_control = $pdo->query("SELECT numero_control FROM ventas ORDER BY id DESC LIMIT 1")->fetchColumn();
 if ($ultimo_control) {
     $parts = explode('-', $ultimo_control);
     $numero = intval($parts[1]);
@@ -161,7 +169,7 @@ if ($ultimo_control) {
 }
 
 // Obtener el siguiente número de factura
-$ultimo_factura = $pdo->query("SELECT numero_factura FROM facturas_compras ORDER BY id DESC LIMIT 1")->fetchColumn();
+$ultimo_factura = $pdo->query("SELECT numero_factura FROM ventas ORDER BY id DESC LIMIT 1")->fetchColumn();
 if ($ultimo_factura) {
     if (strpos($ultimo_factura, '-') !== false) {
         $parts = explode('-', $ultimo_factura);
@@ -180,16 +188,25 @@ if ($ultimo_factura) {
     $numero_factura = '0000001'; // Valor inicial si no hay registros
 }
 
+// Obtener métodos de pago disponibles
+$metodos_pago = $pdo->query("SELECT id, nombre, requiere_referencia FROM metodo_pago ORDER BY nombre")->fetchAll(PDO::FETCH_ASSOC);
+
+// Obtener tasa del día (la más reciente)
 $tasa_info = $pdo->query("SELECT tasa, fecha FROM tasa_diaria ORDER BY fecha DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 $tasa_actual = $tasa_info['tasa'] ?? null;
 $fecha_tasa = $tasa_info['fecha'] ?? null;
+
+// Si no hay tasa, usar 1 como valor por defecto para evitar errores
+if (!$tasa_actual || $tasa_actual <= 0) {
+    $tasa_actual = 1;
+}
 
 include __DIR__ . '/../../includes/header.php';
 ?>
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold text-primary mb-0">
-            <i class="bi bi-cart-plus me-2"></i>Registrar Nueva Compra
+            <i class="bi bi-cart-plus me-2"></i>Registrar Nueva Venta
         </h2>
         <a href="<?= PAGES_URL ?>/compras/historial_compras.php" class="btn btn-outline-secondary">
             <i class="bi bi-arrow-left"></i> Volver
@@ -265,7 +282,11 @@ include __DIR__ . '/../../includes/header.php';
                                     <i class="bi bi-box-seam me-2"></i>Productos
                                 </h5>
                                 <span>
-                                    Tasa del día <?php echo $tasa_actual ? 'BCV= ' . number_format($tasa_actual, 2, '.', '') . ' VES (' . ($fecha_tasa ? date('d/m/Y', strtotime($fecha_tasa)) : 'sin fecha') . ')' : 'No disponible'; ?>
+                                    <i class="bi bi-currency-exchange me-1"></i>
+                                    Tasa del día: <?php echo number_format($tasa_actual, 2, '.', ',') . ' VES'; ?>
+                                    <?php if ($fecha_tasa): ?>
+                                        <small>(<?= date('d/m/Y', strtotime($fecha_tasa)) ?>)</small>
+                                    <?php endif; ?>
                                 </span>
                             </div>
                             <div class="card-body p-0">
@@ -273,8 +294,7 @@ include __DIR__ . '/../../includes/header.php';
                                     <table class="table table-hover align-middle mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th width="18%" class="ps-4">Marca</th>
-                                                <th width="22%" class="ps-4">Modelo</th>
+                                                <th width="40%" class="ps-4">Producto</th>
                                                 <th width="10%" class="text-center">Cantidad</th>
                                                 <th width="13%" class="text-end">Subtotal ($)</th>
                                                 <th width="13%" class="text-end">Subtotal (BS)</th>
@@ -287,26 +307,23 @@ include __DIR__ . '/../../includes/header.php';
                                                 <?php foreach ($productos as $producto): ?>
                                                     <tr class="producto-item">
                                                         <td class="ps-4">
-                                                            <select class="form-select border-0 select2-marca-producto marca-select" name="marca_id[]" required>
-                                                                <option value="">Seleccione una Marca</option>
-                                                                <?php foreach ($marcas as $marca): ?>
-                                                                    <option value="<?= $marca['id'] ?>" <?= ($producto['marca_id'] == $marca['id']) ? 'selected' : '' ?>><?= $marca['nombre'] ?></option>
+                                                            <select class="form-select border-0 producto-select" name="producto_id[]" required>
+                                                                <option value="<?= $producto['id'] ?>" selected><?= htmlspecialchars($producto['nombre']) ?></option>
+                                                                <?php foreach ($productos_todos as $prod): ?>
+                                                                    <?php if ($prod['id'] != $producto['id']): ?>
+                                                                        <option value="<?= $prod['id'] ?>"><?= htmlspecialchars($prod['nombre']) ?></option>
+                                                                    <?php endif; ?>
                                                                 <?php endforeach; ?>
-                                                            </select>
-                                                        </td>
-                                                        <td class="ps-4">
-                                                            <select class="form-select border-0 select2-producto producto-select" name="producto_id[]" required>
-                                                                <option value="<?= $producto['id'] ?>" data-precio="<?= $producto['precio_compra'] ?>"><?= htmlspecialchars($producto['nombre']) ?> - $<?= number_format($producto['precio_compra'], 2, '.', '') ?></option>
                                                             </select>
                                                         </td>
                                                         <td class="text-center">
                                                             <input type="number" name="cantidad[]" min="1" max="999" maxlength="3" value="1" class="form-control border-0 text-center cantidad" required>
                                                         </td>
                                                         <td class="text-end">
-                                                            <span class="fw-semibold subtotal-display-usd">$ <?= number_format($producto['precio_compra'] * 1, 2, '.', '') ?></span>
+                                                            <span class="fw-semibold subtotal-display-usd">$ 0.00</span>
                                                         </td>
                                                         <td class="text-end">
-                                                            <span class="fw-semibold subtotal-display-bs">BS <?= number_format($producto['precio_compra'] * ($tasa_actual ?: 1), 2, '.', '') ?></span>
+                                                            <span class="fw-semibold subtotal-display-bs">BS 0.00</span>
                                                         </td>
                                                         <td class="text-center pe-4">
                                                             <input type="checkbox" class="form-check-input descuento-checkbox">
@@ -322,16 +339,11 @@ include __DIR__ . '/../../includes/header.php';
                                             <?php else: ?>
                                                 <tr class="producto-item">
                                                     <td class="ps-4">
-                                                        <select class="form-select border-0 select2-marca-producto marca-select" name="marca_id[]" required>
-                                                            <option value="">Seleccione una Marca</option>
-                                                            <?php foreach ($marcas as $marca): ?>
-                                                                <option value="<?= $marca['id'] ?>"><?= $marca['nombre'] ?></option>
+                                                        <select class="form-select border-0 producto-select" name="producto_id[]" required>
+                                                            <option value="">Seleccione un producto</option>
+                                                            <?php foreach ($productos_todos as $prod): ?>
+                                                                <option value="<?= $prod['id'] ?>"><?= htmlspecialchars($prod['nombre']) ?></option>
                                                             <?php endforeach; ?>
-                                                        </select>
-                                                    </td>
-                                                    <td class="ps-4">
-                                                        <select class="form-select border-0 select2-producto producto-select" name="producto_id[]" required>
-                                                            <option value="">Seleccione una Marca primero</option>
                                                         </select>
                                                     </td>
                                                     <td class="text-center">
@@ -357,14 +369,14 @@ include __DIR__ . '/../../includes/header.php';
                                         </tbody>
                                         <tfoot class="table-light">
                                             <tr>
-                                                <td colspan="5" class="text-end fw-bold ps-4">Total:</td>
+                                                <td colspan="2" class="text-end fw-bold ps-4">Total:</td>
                                                 <td class="text-end fw-bold">
                                                     <span id="total-usd">$ 0.00</span>
                                                 </td>
                                                 <td class="text-end fw-bold">
                                                     <span id="total-bs">BS 0.00</span>
                                                 </td>
-                                                <td></td>
+                                                <td colspan="2"></td>
                                             </tr>
                                         </tfoot>
                                     </table>
@@ -390,40 +402,86 @@ include __DIR__ . '/../../includes/header.php';
 </div>
 
 <script>
-const tasa = <?php echo $tasa_actual ? $tasa_actual : 1; ?>;
+// Variable global para la tasa del día
+const tasaDelDia = <?= $tasa_actual ?>;
 
 // Función para calcular subtotal
 function calcularSubtotal(row) {
-    const select = row.querySelector('.producto-select');
+    if (!row) {
+        return;
+    }
+    
+    const productoSelect = row.querySelector('.producto-select');
     const cantidadInput = row.querySelector('.cantidad');
     const subtotalDisplayUSD = row.querySelector('.subtotal-display-usd');
     const subtotalDisplayBS = row.querySelector('.subtotal-display-bs');
     const descuentoCheckbox = row.querySelector('.descuento-checkbox');
     const descuentoHidden = row.querySelector('input[name="descuento[]"]');
     
-    const selectedOption = select.options[select.selectedIndex];
-    if (selectedOption && selectedOption.dataset.precio) {
-        const precio = parseFloat(selectedOption.dataset.precio);
-        const cantidad = parseInt(cantidadInput.value) || 0;
-        let subtotalUSD = precio * cantidad;
-        
-        if (descuentoCheckbox.checked) {
-            subtotalUSD *= 0.9; // Aplicar descuento del 10%
-            descuentoHidden.value = "1";
-        } else {
-            descuentoHidden.value = "0";
-        }
-        
-        const subtotalBS = subtotalUSD * tasa;
-
-        subtotalDisplayUSD.textContent = '$ ' + subtotalUSD.toFixed(2);
-        subtotalDisplayBS.textContent = 'BS ' + subtotalBS.toFixed(2);
-    } else {
+    if (!productoSelect || !cantidadInput || !subtotalDisplayUSD || !subtotalDisplayBS) {
+        return;
+    }
+    
+    const selectedValue = productoSelect.value;
+    
+    if (!selectedValue || selectedValue === '' || selectedValue === null) {
         subtotalDisplayUSD.textContent = '$ 0.00';
         subtotalDisplayBS.textContent = 'BS 0.00';
-        descuentoHidden.value = "0";
+        if (descuentoHidden) descuentoHidden.value = "0";
+        calcularTotales();
+        return;
     }
-    calcularTotales();
+    
+    // Obtener datos del producto desde el servidor
+    fetch('obtener_producto.php?id=' + encodeURIComponent(selectedValue))
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.producto) {
+                const producto = data.producto;
+                const precio = parseFloat(producto.precio) || 0;
+                let cantidad = parseInt(cantidadInput.value) || 0;
+                
+                // Validar cantidad
+                if (cantidad <= 0) {
+                    cantidad = 1;
+                    cantidadInput.value = 1;
+                }
+                
+                // Calcular subtotal en USD: precio * cantidad
+                let subtotalUSD = precio * cantidad;
+                
+                // Aplicar descuento del 10% si está marcado
+                if (descuentoCheckbox && descuentoCheckbox.checked) {
+                    subtotalUSD *= 0.9;
+                    if (descuentoHidden) descuentoHidden.value = "1";
+                } else {
+                    if (descuentoHidden) descuentoHidden.value = "0";
+                }
+                
+                // Calcular subtotal en BS: subtotal USD * tasa del día
+                const subtotalBS = subtotalUSD * tasaDelDia;
+
+                subtotalDisplayUSD.textContent = '$ ' + subtotalUSD.toFixed(2);
+                subtotalDisplayBS.textContent = 'BS ' + subtotalBS.toFixed(2);
+            } else {
+                subtotalDisplayUSD.textContent = '$ 0.00';
+                subtotalDisplayBS.textContent = 'BS 0.00';
+                if (descuentoHidden) descuentoHidden.value = "0";
+            }
+            calcularTotales();
+        })
+        .catch(error => {
+            console.error('Error al obtener producto:', error);
+            subtotalDisplayUSD.textContent = '$ 0.00';
+            subtotalDisplayBS.textContent = 'BS 0.00';
+            if (descuentoHidden) descuentoHidden.value = "0";
+            calcularTotales();
+        });
 }
 
 // Función para calcular totales
@@ -449,70 +507,47 @@ document.addEventListener('DOMContentLoaded', function() {
     const productosContainer = document.getElementById('productos-container');
     const btnAgregar = document.getElementById('btn-agregar-producto');
 
-    // Cargar productos por marca
-    function cargarProductos(marcaId, selectElement) {
-        selectElement.innerHTML = '<option value="">Cargando productos...</option>';
-        fetch('productos_por_marca.php?marca_id=' + marcaId)
-            .then(response => response.json())
-            .then(productos => {
-                let options = '<option value="">Seleccione un producto</option>';
-                productos.forEach(producto => {
-                    options += `<option value="${producto.id}" data-precio="${producto.precio_compra}">
-                        ${producto.nombre} - $${parseFloat(producto.precio_compra).toFixed(2)}
-                    </option>`;
-                });
-                selectElement.innerHTML = options;
-                // Inicializar Select2 en el select cargado
-                $(selectElement).select2({
-                    placeholder: 'Buscar modelo...',
-                    allowClear: true,
-                    width: '100%'
-                });
-                // No seleccionar automáticamente el primer producto
-                const row = selectElement.closest('.producto-item');
-                calcularSubtotal(row);
+    // Cargar todos los productos
+    let productosDisponibles = [];
+    fetch('productos_todos.php')
+        .then(response => response.json())
+        .then(productos => {
+            productosDisponibles = productos;
+            
+            // Calcular subtotales iniciales después de cargar productos
+            document.querySelectorAll('.producto-item').forEach(function(row) {
+                const productoSelect = row.querySelector('.producto-select');
+                if (productoSelect && productoSelect.value) {
+                    calcularSubtotal(row);
+                }
             });
-    }
+            calcularTotales();
+        })
+        .catch(error => {
+            console.error('Error al cargar productos:', error);
+        });
 
-    // Evento para cambio de marca en cada fila de producto
-    $(document).on('select2:select select2:clear', '.marca-select', function (e) {
-        const marcaId = $(this).val();
-        const row = $(this).closest('.producto-item');
-        const productoSelect = row.find('.producto-select');
-        
-        if (marcaId) {
-            cargarProductos(marcaId, productoSelect[0]);
-        } else {
-            // Limpiar productos si no hay marca seleccionada
-            productoSelect.html('<option value="" data-precio="0">Seleccione una Marca primero</option>');
-            $(productoSelect).select2({
-                placeholder: 'Buscar modelo...',
-                allowClear: true,
-                width: '100%'
-            });
-            calcularSubtotal(row[0]);
+    // Evento para cambio de producto en cada fila (select nativo)
+    document.addEventListener('change', function(e) {
+        if (e.target && e.target.classList.contains('producto-select')) {
+            const select = e.target;
+            const row = select.closest('.producto-item');
+            if (row) {
+                calcularSubtotal(row);
+            }
         }
     });
 
-    // Evento para cambio de producto en cada fila
-    $(document).on('select2:select select2:clear', '.producto-select', function (e) {
-        const row = $(this).closest('.producto-item');
-        calcularSubtotal(row[0]);
-    });
-
-    const productoTemplate = () => `
+    const productoTemplate = () => {
+        let options = '<option value="">Seleccione un producto</option>';
+        productosDisponibles.forEach(producto => {
+            options += `<option value="${producto.id}">${producto.nombre}</option>`;
+        });
+        return `
         <tr class="producto-item">
             <td class="ps-4">
-                <select class="form-select border-0 select2-marca-producto marca-select" name="marca_id[]" required>
-                    <option value="">Seleccione una Marca</option>
-                    <?php foreach ($marcas as $marca): ?>
-                        <option value="<?= $marca['id'] ?>"><?= $marca['nombre'] ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </td>
-            <td class="ps-4">
-                <select class="form-select border-0 select2-producto producto-select" name="producto_id[]" required>
-                    <option value="" data-precio="0">Seleccione una Marca primero</option>
+                <select class="form-select border-0 producto-select" name="producto_id[]" required>
+                    ${options}
                 </select>
             </td>
             <td class="text-center">
@@ -535,6 +570,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </td>
         </tr>
     `;
+    };
 
     btnAgregar.addEventListener('click', function() {
         const nuevoProducto = document.createElement('tr');
@@ -542,28 +578,23 @@ document.addEventListener('DOMContentLoaded', function() {
         nuevoProducto.innerHTML = productoTemplate();
         productosContainer.appendChild(nuevoProducto);
 
-        // Inicializar Select2 para los nuevos selects
-        const marcaSelect = nuevoProducto.querySelector('.marca-select');
-        const productoSelect = nuevoProducto.querySelector('.producto-select');
-        
-        $(marcaSelect).select2({
-            placeholder: 'Buscar marca...',
-            allowClear: true,
-            width: '100%'
-        });
-        
-        $(productoSelect).select2({
-            placeholder: 'Buscar modelo...',
-            allowClear: true,
-            width: '100%'
-        });
-
         // Agregar event listeners al nuevo select y cantidad
+        const productoSelect = nuevoProducto.querySelector('.producto-select');
+        productoSelect.addEventListener('change', function() {
+            const row = this.closest('.producto-item');
+            calcularSubtotal(row);
+        });
+        
         const cantidadInput = nuevoProducto.querySelector('.cantidad');
         cantidadInput.addEventListener('input', function() {
             const row = this.closest('.producto-item');
             calcularSubtotal(row);
         });
+        cantidadInput.addEventListener('blur', function() {
+            const row = this.closest('.producto-item');
+            calcularSubtotal(row);
+        });
+        
         const descuentoCheckbox = nuevoProducto.querySelector('.descuento-checkbox');
         descuentoCheckbox.addEventListener('change', function() {
             const row = this.closest('.producto-item');
@@ -591,37 +622,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Calcular subtotales iniciales y agregar event listeners
     document.querySelectorAll('.producto-item').forEach(function(row) {
-        // Inicializar Select2 para marca y producto en filas existentes
-        const marcaSelect = row.querySelector('.marca-select');
+        // Agregar event listener al select nativo
         const productoSelect = row.querySelector('.producto-select');
-        
-        if (marcaSelect) {
-            $(marcaSelect).select2({
-                placeholder: 'Buscar marca...',
-                allowClear: true,
-                width: '100%'
-            });
-        }
-        
         if (productoSelect) {
-            $(productoSelect).select2({
-                placeholder: 'Buscar modelo...',
-                allowClear: true,
-                width: '100%'
+            productoSelect.addEventListener('change', function() {
+                const row = this.closest('.producto-item');
+                calcularSubtotal(row);
             });
+            
+            // Si ya tiene un valor seleccionado, calcular subtotal
+            if (productoSelect.value) {
+                calcularSubtotal(row);
+            }
         }
         
-        calcularSubtotal(row);
-        
-        // Agregar event listeners
+        // Agregar event listeners a cantidad
         const cantidadInput = row.querySelector('.cantidad');
         if (cantidadInput) {
             cantidadInput.addEventListener('input', function() {
                 const row = this.closest('.producto-item');
                 calcularSubtotal(row);
             });
+            cantidadInput.addEventListener('blur', function() {
+                const row = this.closest('.producto-item');
+                calcularSubtotal(row);
+            });
         }
         
+        // Agregar event listener a descuento
         const descuentoCheckbox = row.querySelector('.descuento-checkbox');
         if (descuentoCheckbox) {
             descuentoCheckbox.addEventListener('change', function() {
@@ -630,24 +658,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-    calcularTotales();
 
-    // Inicializar Select2 para búsqueda inteligente
+    // Inicializar Select2 solo para el select de cliente
     $('.select2-cliente').select2({
         placeholder: 'Buscar cliente...',
-        allowClear: true,
-        width: '100%'
-    });
-
-    // Inicializar Select2 para los selects de marca y productos existentes
-    $('.select2-marca-producto').select2({
-        placeholder: 'Buscar marca...',
-        allowClear: true,
-        width: '100%'
-    });
-
-    $('.select2-producto').select2({
-        placeholder: 'Buscar modelo...',
         allowClear: true,
         width: '100%'
     });
@@ -678,7 +692,10 @@ document.addEventListener('DOMContentLoaded', function() {
         productosRows.forEach(function(row) {
             const productoSelect = row.querySelector('.producto-select');
             const cantidadInput = row.querySelector('.cantidad');
-            if (productoSelect && productoSelect.value && cantidadInput && parseInt(cantidadInput.value) > 0) {
+            const productoId = productoSelect ? productoSelect.value : null;
+            const cantidad = parseInt(cantidadInput ? cantidadInput.value : 0) || 0;
+            
+            if (productoId && productoId !== '' && cantidad > 0) {
                 productosValidos++;
             }
         });
@@ -692,19 +709,29 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     });
 
+    // Inicializar Select2 para método de pago
+    $('#metodo_pago_id').select2({
+        placeholder: 'Seleccione un método...',
+        allowClear: false,
+        width: '100%',
+        dropdownParent: $('#modalMetodoPago')
+    });
+    
     // Manejar cambio de método de pago
-    document.getElementById('metodo_pago').addEventListener('change', function() {
-        const metodo = this.value;
+    $('#metodo_pago_id').on('change', function() {
+        const metodoId = $(this).val();
         const referenciaContainer = document.getElementById('numero_referencia_container');
         const referenciaInput = document.getElementById('numero_referencia');
+        const selectedOption = $(this).find('option:selected');
+        const requiereReferencia = selectedOption.data('requiere-referencia') == 1;
         
-        if (metodo === 'Efectivo') {
-            // Ocultar y limpiar el campo de referencia para Efectivo
+        if (!requiereReferencia) {
+            // Ocultar y limpiar el campo de referencia si no lo requiere
             referenciaContainer.style.display = 'none';
             referenciaInput.value = '';
             referenciaInput.removeAttribute('required');
         } else {
-            // Mostrar y hacer obligatorio para otros métodos
+            // Mostrar y hacer obligatorio si requiere referencia
             referenciaContainer.style.display = 'block';
             referenciaInput.setAttribute('required', 'required');
         }
@@ -712,39 +739,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Manejar la confirmación del pago
     document.getElementById('btn-confirmar-pago').addEventListener('click', function() {
-        const metodo = document.getElementById('metodo_pago').value;
+        const metodoId = $('#metodo_pago_id').val();
         const referenciaInput = document.getElementById('numero_referencia');
         const referencia = referenciaInput.value;
+        const selectedOption = $('#metodo_pago_id').find('option:selected');
+        const requiereReferencia = selectedOption.data('requiere-referencia') == 1;
+        const metodoNombre = selectedOption.text();
         
-        if (!metodo) {
+        if (!metodoId) {
             alert('Por favor seleccione un método de pago.');
             return;
         }
         
-        // Validar número de referencia solo si no es Efectivo
-        if (metodo !== 'Efectivo' && !referencia) {
-            alert('El número de referencia es obligatorio para ' + metodo + '.');
-            referenciaInput.focus();
-            return;
-        }
-        
-        // Validar formato del número de referencia si se proporciona
-        if (referencia && !/^\d{4}$/.test(referencia)) {
-            alert('El número de referencia debe tener exactamente 4 dígitos.');
+        // Validar número de referencia solo si es requerido
+        if (requiereReferencia && !referencia) {
+            alert('El número de referencia es obligatorio para ' + metodoNombre + '.');
             referenciaInput.focus();
             return;
         }
         
         // Agregar campos hidden al formulario principal
         const form = document.getElementById('form-compra');
+        
+        // Eliminar campos hidden anteriores si existen
+        const existingMetodo = form.querySelector('input[name="metodo_pago_id"]');
+        const existingReferencia = form.querySelector('input[name="numero_referencia"]');
+        if (existingMetodo) existingMetodo.remove();
+        if (existingReferencia) existingReferencia.remove();
+        
         const hiddenMetodo = document.createElement('input');
         hiddenMetodo.type = 'hidden';
-        hiddenMetodo.name = 'metodo_pago';
-        hiddenMetodo.value = metodo;
+        hiddenMetodo.name = 'metodo_pago_id';
+        hiddenMetodo.value = metodoId;
         form.appendChild(hiddenMetodo);
         
-        // Solo agregar número de referencia si no es Efectivo y tiene valor
-        if (metodo !== 'Efectivo' && referencia) {
+        if (referencia) {
             const hiddenReferencia = document.createElement('input');
             hiddenReferencia.type = 'hidden';
             hiddenReferencia.name = 'numero_referencia';
@@ -761,5 +790,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <?php include 'modal_metodopago.php'; ?>
-
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

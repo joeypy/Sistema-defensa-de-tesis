@@ -22,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Obtener tasa actual de la base de datos
-$tasa_actual = $pdo->query("SELECT * FROM tasa_diaria WHERE fecha = CURDATE()")->fetch(PDO::FETCH_ASSOC);
+// Obtener última tasa guardada en el sistema
+$tasa_actual = $pdo->query("SELECT * FROM tasa_diaria ORDER BY fecha DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
 
 // Obtener tasa del día desde la API oficial
 $tasa_api = null;
@@ -126,7 +126,85 @@ include __DIR__ . '/../../includes/header.php';
     </div>
 
     <div class="row">
-        <div class="col-md-6">
+        <!-- Card: Información de la API -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-globe me-2"></i>Tasa del Día (API Oficial)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
+                        <div class="text-center mb-3">
+                            <h3 class="text-primary mb-2">
+                                1 USD = <?php echo number_format($tasa_api['promedio'], 2); ?> VES
+                            </h3>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Fuente:</strong> <?php echo htmlspecialchars($tasa_api['nombre'] ?? 'Oficial'); ?>
+                        </div>
+                        <?php if (isset($tasa_api['fechaActualizacion'])): ?>
+                            <div class="mb-0 text-muted small">
+                                <i class="bi bi-clock me-1"></i>
+                                Actualizado: <?php 
+                                    $fecha = new DateTime($tasa_api['fechaActualizacion']);
+                                    echo $fecha->format('d/m/Y H:i:s');
+                                ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php elseif ($sin_conexion): ?>
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-wifi-off me-2"></i>
+                            <strong>Sin conexión a internet</strong>
+                            <p class="mb-0 small mt-2">La tasa de la API no está disponible. Puede ingresar la tasa manualmente en el formulario.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="alert alert-danger mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Error al obtener tasa</strong>
+                            <p class="mb-0 small mt-2"><?php echo htmlspecialchars($error_api ?? 'No se pudo obtener la tasa del día'); ?></p>
+                            <p class="mb-0 small mt-2">Puede ingresar la tasa manualmente en el formulario.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card: Tasa Guardada en Sistema -->
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-database me-2"></i>Tasa Guardada en Sistema
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <?php if ($tasa_actual): ?>
+                        <div class="text-center mb-3">
+                            <h3 class="text-secondary mb-2">
+                                1 USD = <?php echo number_format($tasa_actual['tasa'], 2); ?> VES
+                            </h3>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Fecha:</strong> <?php echo $tasa_actual['fecha']; ?>
+                        </div>
+                        <?php if ($tasa_actual['descripcion']): ?>
+                            <div class="mb-0">
+                                <strong>Descripción:</strong> <?php echo htmlspecialchars($tasa_actual['descripcion']); ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <p class="text-muted mb-0 text-center">No hay tasa guardada en el sistema.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Card: Establecer Tasa Diaria -->
+        <div class="col-md-12">
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">Establecer Tasa Diaria</h5>
@@ -139,33 +217,40 @@ include __DIR__ . '/../../includes/header.php';
                         <div class="alert alert-danger"><?php echo $error; ?></div>
                     <?php endif; ?>
 
-                    <form method="POST">
-                        <div class="mb-3">
-                            <label for="fecha" class="form-label">Fecha:</label>
-                            <input type="date" id="fecha" name="fecha" class="form-control" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="tasa" class="form-label">Tasa (1 USD = X VES):</label>
-                            <div class="input-group">
-                                <input type="number" id="tasa" name="tasa" class="form-control" step="0.01" min="0" value="<?php echo $tasa_actual['tasa'] ?? ''; ?>" required>
-                                <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
-                                    <button type="button" class="btn btn-outline-success" onclick="document.getElementById('tasa').value = '<?php echo $tasa_api['promedio']; ?>'; document.getElementById('descripcion').value = 'Tasa oficial del día - <?php echo date('d/m/Y'); ?>';">
-                                        <i class="bi bi-arrow-down-circle me-1"></i>Usar API
-                                    </button>
-                                <?php else: ?>
-                                    <button type="button" class="btn btn-outline-secondary" disabled title="No disponible sin conexión a internet">
-                                        <i class="bi bi-arrow-down-circle me-1"></i>Usar API
-                                    </button>
-                                <?php endif; ?>
+                    <form method="POST" id="formTasa">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="fecha" class="form-label">Fecha:</label>
+                                <input type="date" id="fecha" name="fecha" class="form-control" value="<?php echo date('Y-m-d'); ?>" max="<?php echo date('Y-m-d'); ?>" required>
                             </div>
-                            <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
-                                <small class="text-muted">Valor de la API: <?php echo number_format($tasa_api['promedio'], 2); ?> VES</small>
-                            <?php elseif ($sin_conexion): ?>
-                                <small class="text-danger">
-                                    <i class="bi bi-wifi-off me-1"></i>Sin conexión a internet, tasa no disponible
-                                </small>
-                            <?php endif; ?>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label d-block">Fuente de la Tasa:</label>
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="usar_api" <?php echo ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion) ? 'checked' : 'disabled'; ?> onchange="toggleApi()">
+                                    <label class="form-check-label" for="usar_api">
+                                        Usar tasa de la API
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="ingresar_manual" onchange="toggleInputManual()">
+                                    <label class="form-check-label" for="ingresar_manual">
+                                        Ingresar manualmente
+                                    </label>
+                                </div>
+                            </div>
                         </div>
+
+                        <!-- Input para tasa de API (oculto, se llena automáticamente) -->
+                        <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
+                            <input type="hidden" id="tasa_api_value" value="<?php echo $tasa_api['promedio']; ?>">
+                        <?php endif; ?>
+
+                        <!-- Input de tasa (se muestra u oculta según la opción seleccionada) -->
+                        <div class="mb-3" id="input_tasa_container">
+                            <label for="tasa" class="form-label">Tasa (1 USD = X VES):</label>
+                            <input type="number" id="tasa" name="tasa" class="form-control" step="0.01" min="0" value="<?php echo $tasa_actual['tasa'] ?? ($tasa_api['promedio'] ?? ''); ?>" required>
+                        </div>
+
                         <div class="mb-3">
                             <label for="descripcion" class="form-label">Descripción (opcional):</label>
                             <textarea id="descripcion" name="descripcion" class="form-control" rows="3"><?php echo $tasa_actual['descripcion'] ?? ''; ?></textarea>
@@ -177,65 +262,13 @@ include __DIR__ . '/../../includes/header.php';
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-md-6">
+    <div class="row mt-4">
+        <!-- Card: Últimas Tasas -->
+        <div class="col-md-12">
+
             <div class="card shadow-sm">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">Tasa Actual</h5>
-                </div>
-                <div class="card-body">
-                    <!-- Tasa del día desde API oficial -->
-                    <div class="mb-4 p-3 bg-light rounded">
-                        <h6 class="text-primary mb-2">
-                            <i class="bi bi-globe me-2"></i>Tasa del Día (API Oficial)
-                        </h6>
-                        <?php if ($tasa_api && isset($tasa_api['promedio']) && !$sin_conexion): ?>
-                            <p class="mb-1"><strong>Fuente:</strong> <?php echo htmlspecialchars($tasa_api['nombre'] ?? 'Oficial'); ?></p>
-                            <p class="mb-1"><strong>Tasa Promedio:</strong> 
-                                <span class="fs-6">1 USD = <?php echo number_format($tasa_api['promedio'], 2); ?> VES</span>
-                            </p>
-                            <?php if (isset($tasa_api['fechaActualizacion'])): ?>
-                                <p class="mb-0 text-muted small">
-                                    <i class="bi bi-clock me-1"></i>
-                                    Actualizado: <?php 
-                                        $fecha = new DateTime($tasa_api['fechaActualizacion']);
-                                        echo $fecha->format('d/m/Y H:i:s');
-                                    ?>
-                                </p>
-                            <?php endif; ?>
-                        <?php elseif ($sin_conexion): ?>
-                            <div class="alert alert-warning mb-0">
-                                <i class="bi bi-wifi-off me-2"></i>
-                                <strong>Sin conexión a internet, tasa no disponible</strong>
-                                <p class="mb-0 small mt-1">Puede ingresar la tasa manualmente en el formulario.</p>
-                            </div>
-                        <?php else: ?>
-                            <p class="text-danger mb-0">
-                                <i class="bi bi-exclamation-triangle me-1"></i>
-                                <?php echo $error_api ?? 'No se pudo obtener la tasa del día'; ?>
-                            </p>
-                        <?php endif; ?>
-                    </div>
-
-                    <!-- Tasa guardada en base de datos -->
-                    <div class="border-top pt-3">
-                        <h6 class="text-secondary mb-2">
-                            <i class="bi bi-database me-2"></i>Tasa Guardada en Sistema
-                        </h6>
-                        <?php if ($tasa_actual): ?>
-                            <p class="mb-1"><strong>Fecha:</strong> <?php echo $tasa_actual['fecha']; ?></p>
-                            <p class="mb-1"><strong>Tasa:</strong> 1 USD = <?php echo number_format($tasa_actual['tasa'], 2); ?> VES</p>
-                            <?php if ($tasa_actual['descripcion']): ?>
-                                <p class="mb-0"><strong>Descripción:</strong> <?php echo htmlspecialchars($tasa_actual['descripcion']); ?></p>
-                            <?php endif; ?>
-                        <?php else: ?>
-                            <p class="text-muted mb-0">No hay tasa definida para hoy en el sistema.</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card shadow-sm mt-3">
                 <div class="card-header bg-secondary text-white">
                     <h5 class="mb-0">Últimas Tasas</h5>
                 </div>
@@ -265,5 +298,76 @@ include __DIR__ . '/../../includes/header.php';
         </div>
     </div>
 </div>
+
+<script>
+function toggleInputManual() {
+    const checkbox = document.getElementById('ingresar_manual');
+    const inputTasa = document.getElementById('tasa');
+    const checkboxApi = document.getElementById('usar_api');
+    const tasaApiValue = document.getElementById('tasa_api_value');
+    
+    if (checkbox.checked) {
+        // Modo manual: limpiar el campo y permitir entrada manual
+        checkboxApi.checked = false;
+        inputTasa.value = '';
+        inputTasa.placeholder = 'Ingrese la tasa manualmente';
+    } else {
+        // Modo API: restaurar valor de API si está disponible
+        checkboxApi.checked = true;
+        if (tasaApiValue) {
+            inputTasa.value = tasaApiValue.value;
+            inputTasa.placeholder = '';
+            document.getElementById('descripcion').value = 'Tasa oficial del día - <?php echo date('d/m/Y'); ?>';
+        }
+    }
+}
+
+function toggleApi() {
+    const checkboxApi = document.getElementById('usar_api');
+    const checkboxManual = document.getElementById('ingresar_manual');
+    const inputTasa = document.getElementById('tasa');
+    const tasaApiValue = document.getElementById('tasa_api_value');
+    
+    if (checkboxApi.checked) {
+        // Desmarcar manual
+        checkboxManual.checked = false;
+        
+        // Llenar con valor de API
+        if (tasaApiValue) {
+            inputTasa.value = tasaApiValue.value;
+            inputTasa.placeholder = '';
+            document.getElementById('descripcion').value = 'Tasa oficial del día - <?php echo date('d/m/Y'); ?>';
+        }
+    }
+}
+
+// Inicializar al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxApi = document.getElementById('usar_api');
+    const checkboxManual = document.getElementById('ingresar_manual');
+    const inputTasa = document.getElementById('tasa');
+    const tasaApiValue = document.getElementById('tasa_api_value');
+    
+    // Si hay valor de API y está marcado por defecto, asegurar que se muestre
+    if (checkboxApi && checkboxApi.checked && tasaApiValue) {
+        inputTasa.value = tasaApiValue.value;
+        document.getElementById('descripcion').value = 'Tasa oficial del día - <?php echo date('d/m/Y'); ?>';
+    }
+    
+    // Validar formulario antes de enviar
+    document.getElementById('formTasa').addEventListener('submit', function(e) {
+        if (!inputTasa.value || inputTasa.value <= 0) {
+            e.preventDefault();
+            if (checkboxManual.checked) {
+                alert('Por favor, ingrese una tasa válida manualmente');
+            } else {
+                alert('Por favor, ingrese una tasa válida');
+            }
+            inputTasa.focus();
+            return false;
+        }
+    });
+});
+</script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

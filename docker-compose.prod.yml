@@ -11,7 +11,7 @@ services:
         condition: service_healthy
     environment:
       - DB_HOST=${DB_HOST:-db}
-      - DB_NAME=${DB_NAME:-sistema_compras_zapatos}
+      - DB_NAME=${DB_NAME:-sistema_admin}
       - DB_USER=${DB_USER:-root}
       - DB_PASS=${DB_PASS:-rootpassword}
     restart: unless-stopped
@@ -23,7 +23,7 @@ services:
     container_name: sistema_compras_db
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASS:-rootpassword}
-      - MYSQL_DATABASE=${DB_NAME:-sistema_compras_zapatos}
+      - MYSQL_DATABASE=${DB_NAME:-sistema_admin}
       - MYSQL_USER=${DB_USER:-root}
       - MYSQL_PASSWORD=${DB_PASS:-rootpassword}
     volumes:

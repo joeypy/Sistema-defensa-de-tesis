@@ -1,7 +1,7 @@
 -- Script de datos iniciales
 -- Este archivo se ejecuta después de 01-schema.sql
 
-USE sistema_compras_zapatos;
+USE sistema_admin;
 
 -- Insertar usuario administrador por defecto
 -- Contraseña: admin123 (hash bcrypt)
